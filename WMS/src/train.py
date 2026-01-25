@@ -11,7 +11,7 @@ from torchsummary import summary
 from scipy.spatial.distance import directed_hausdorff
 from model import WaterMetersUNet
 from dataset import WMSDataset
-from transforms_aug import TrainTransforms, valTransforms
+from transforms import TrainTransforms, valTransforms
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 # Dice coefficient
@@ -108,7 +108,7 @@ trainLosses, valLosses, testLosses = [], [], []
 trainAccs, valAccs, testAccs = [], [], []
 trainDice, valDice, testDice = [], [], []
 trainIoU, valIoU, testIoU = [], [], []
-numEpochs = 200
+numEpochs = 100
 bestVal = float('inf')
 patienceCtr = 0
 

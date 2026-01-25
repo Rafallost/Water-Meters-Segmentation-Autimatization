@@ -9,7 +9,7 @@ import torch
 import torchvision
 from torch.utils.data import DataLoader
 from dataset import WMSDataset
-from transforms import imageTransforms
+from transforms import valTransforms
 import matplotlib.pyplot as plt
 
 ############### DATA LOAD ###############
@@ -58,9 +58,9 @@ valImagePaths = [os.path.join(baseDataDir, 'val', 'images', f)
 valMaskPaths  = [os.path.join(baseDataDir, 'val', 'masks', f)
                    for f in os.listdir(os.path.join(baseDataDir, 'val', 'masks')) if f.endswith('.jpg')]
 
-trainDataset = WMSDataset(trainImagePaths, trainMaskPaths, imageTransforms)
-testDataset = WMSDataset(testImagePaths, testMaskPaths, imageTransforms)
-valDataset  = WMSDataset(valImagePaths,  valMaskPaths,   imageTransforms)
+trainDataset = WMSDataset(trainImagePaths, trainMaskPaths, valTransforms)
+testDataset = WMSDataset(testImagePaths, testMaskPaths, valTransforms)
+valDataset  = WMSDataset(valImagePaths,  valMaskPaths,   valTransforms)
 
 print(f"trainDataset length(train part): {len(trainDataset)}")
 print(f"testDataset length(train part): {len(testDataset)}")

@@ -1,7 +1,7 @@
 import torch
 import matplotlib.pyplot as plt
 from model import WaterMetersUNet
-from transforms import imageTransforms
+from transforms import valTransforms
 import cv2
 import os
 
@@ -30,7 +30,7 @@ for fname in os.listdir(custom_dir):
     rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
     orig_resized = cv2.resize(rgb, (512, 512), interpolation=cv2.INTER_AREA)
     # 2) Apply same transformations as in training
-    tensor = imageTransforms(rgb).unsqueeze(0).to(device)  # [1,3,512,512]
+    tensor = valTransforms(rgb).unsqueeze(0).to(device)  # [1,3,512,512]
     # 3) Prediction
     with torch.no_grad():
         out   = model(tensor)
