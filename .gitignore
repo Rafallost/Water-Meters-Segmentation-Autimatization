@@ -181,11 +181,9 @@ WMS/data/predictions/predicted_masks/
 # PyPI configuration file
 .pypirc
 
-# Claude Code files
-prompt.md
-
 # Ignore saved model weights
 unet_epoch*.pth
+best-current-session.pth
 
 # Don't ignore the best model weights
 !best.pth

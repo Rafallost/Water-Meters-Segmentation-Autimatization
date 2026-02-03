@@ -108,9 +108,37 @@ trainLosses, valLosses, testLosses = [], [], []
 trainAccs, valAccs, testAccs = [], [], []
 trainDice, valDice, testDice = [], [], []
 trainIoU, valIoU, testIoU = [], [], []
-numEpochs = 200
+numEpochs = 100
 bestVal = float('inf')
 patienceCtr = 0
+
+# Session tracking variables
+bestSessionVal = float('inf')  # Best validation loss in current session
+bestSessionEpoch = 0           # Epoch with best result in session
+bestSessionMetrics = {}        # Metrics of best model in session
+
+# Load existing best.pth and validate it to get baseline for comparison
+models_dir = os.path.join(os.path.dirname(__file__), '..', 'models')
+best_path = os.path.join(models_dir, 'best.pth')
+previousBestVal = float('inf')
+
+if os.path.exists(best_path):
+    print("Found existing best.pth - validating to establish baseline...")
+    model.load_state_dict(torch.load(best_path))
+    model.eval()
+    runningLoss = 0.0
+    with torch.no_grad():
+        for images, masks in valLoader:
+            images, masks = images.to(device), masks.to(device)
+            outputs = model(images)
+            runningLoss += criterion(outputs, masks).item()
+    previousBestVal = runningLoss / len(valLoader)
+    print(f"Previous best.pth validation loss: {previousBestVal:.4f}")
+    print("="*80)
+    # Reset model for training
+    model = WaterMetersUNet(inChannels=3, outChannels=1).to(device)
+    optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-4)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
 
 # Training loop
 for epoch in range(1, numEpochs + 1):
@@ -173,17 +201,6 @@ for epoch in range(1, numEpochs + 1):
     valIoU.append(avgValIoU)
     scheduler.step(avgValLoss)
 
-    # Save best result
-    if avgValLoss < bestVal:
-        bestVal = avgValLoss
-        patienceCtr = 0
-        torch.save(model.state_dict(), os.path.join(os.path.dirname(__file__), '..', 'models', f'best.pth'))
-    else:
-        patienceCtr += 1
-        if patienceCtr >= 5:
-            print("Early stopping")
-            break
-
     # Testing
     model.eval()
     runningTestLoss, runningTestAcc, runningTestDice, runningTestIoU = 0.0, 0.0, 0.0, 0.0
@@ -215,9 +232,102 @@ for epoch in range(1, numEpochs + 1):
           f" - Val Loss: {avgValLoss:.4f}, Acc: {avgValAcc:.4f}, Dice: {avgValDice:.4f}, IoU: {avgValIoU:.4f}"
           f" - Test Loss: {avgTestLoss:.4f}, Acc: {avgTestAcc:.4f}, Dice: {avgTestDice:.4f}, IoU: {avgTestIoU:.4f}")
 
+    # Save best result for current session (after all metrics are calculated)
+    if avgValLoss < bestSessionVal:
+        bestSessionVal = avgValLoss
+        bestSessionEpoch = epoch
+        bestSessionMetrics = {
+            'epoch': epoch,
+            'val_loss': avgValLoss,
+            'val_acc': avgValAcc,
+            'val_dice': avgValDice,
+            'val_iou': avgValIoU,
+            'test_loss': avgTestLoss,
+            'test_acc': avgTestAcc,
+            'test_dice': avgTestDice,
+            'test_iou': avgTestIoU
+        }
+        patienceCtr = 0
+        torch.save(model.state_dict(),
+                   os.path.join(os.path.dirname(__file__), '..', 'models', 'best-current-session.pth'))
+        print(f"  → Saved best-current-session.pth (epoch {epoch}, val_loss: {avgValLoss:.4f})")
+    else:
+        patienceCtr += 1
+        if patienceCtr >= 5:
+            print("Early stopping")
+            break
+
     # Saving checkpoint
     os.makedirs(os.path.join(os.path.dirname(__file__), '..', 'models'), exist_ok=True)
     torch.save(model.state_dict(), os.path.join(os.path.dirname(__file__), '..', 'models', f'unet_epoch{epoch}.pth'))
+
+# Training completed - compare with previous best and update if better
+print("\n" + "="*80)
+print("Training completed!")
+print(f"Best model from this session: epoch {bestSessionEpoch}, val_loss: {bestSessionVal:.4f}")
+print("="*80)
+
+best_session_path = os.path.join(models_dir, 'best-current-session.pth')
+
+# Compare with previous best.pth
+print(f"\nPrevious best validation loss: {previousBestVal:.4f}")
+print(f"Current session best validation loss: {bestSessionVal:.4f}")
+
+if bestSessionVal < previousBestVal:
+    # Current session improved - update best.pth and Terminal.log
+    import shutil
+    shutil.copy(best_session_path, best_path)
+    print(f"✓ Updated best.pth with model from epoch {bestSessionEpoch}")
+
+    # Save training results to Terminal.log
+    results_dir = os.path.join(os.path.dirname(__file__), '..', 'Results')
+    os.makedirs(results_dir, exist_ok=True)
+    log_path = os.path.join(results_dir, 'Terminal.log')
+
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    log_content = f"""
+{'='*80}
+Training Session - {timestamp}
+{'='*80}
+Configuration:
+  - Epochs: {numEpochs}
+  - Early stopping patience: 5
+  - Learning rate: 1e-4
+  - Batch size: 4
+
+Best Model (epoch {bestSessionEpoch}):
+  Validation Metrics:
+    - Loss: {bestSessionMetrics['val_loss']:.4f}
+    - Accuracy: {bestSessionMetrics['val_acc']:.4f}
+    - Dice: {bestSessionMetrics['val_dice']:.4f}
+    - IoU: {bestSessionMetrics['val_iou']:.4f}
+
+  Test Metrics:
+    - Loss: {bestSessionMetrics['test_loss']:.4f}
+    - Accuracy: {bestSessionMetrics['test_acc']:.4f}
+    - Dice: {bestSessionMetrics['test_dice']:.4f}
+    - IoU: {bestSessionMetrics['test_iou']:.4f}
+
+Models saved:
+  - best.pth (global best) - UPDATED
+  - best-current-session.pth (this session)
+  - unet_epoch1.pth to unet_epoch{epoch}.pth
+{'='*80}
+
+"""
+
+    # Append to file to keep history of improvements
+    with open(log_path, 'a', encoding='utf-8') as f:
+        f.write(log_content)
+
+    print(f"✓ Training results saved to {log_path}")
+else:
+    # Current session did not improve
+    print(f"✗ Current session did not improve best.pth (difference: {bestSessionVal - previousBestVal:+.4f})")
+    print(f"  best.pth and Terminal.log were NOT updated")
+    print(f"  best-current-session.pth saved for reference")
 
 # Summary and plots
 summary(model, input_size=(3, 512, 512))
@@ -267,6 +377,12 @@ axes[1, 1].grid(True, alpha=0.3)
 plt.suptitle('Training Metrics', fontsize=16, fontweight='bold')
 plt.tight_layout()
 plt.show()
+
+# Load best.pth for final evaluation
+print("\n" + "="*80)
+print("Loading best.pth for final evaluation...")
+model.load_state_dict(torch.load(best_path))
+print("="*80)
 
 # Final metrics on test set
 print("--- Final evaluation on test set ---")
