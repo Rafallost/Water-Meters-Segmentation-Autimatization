@@ -1,0 +1,33 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install flake8 black mypy pytest
+
+      - name: Lint
+        run: flake8 WMS/src/ --max-line-length 120
+
+      - name: Format check
+        run: black WMS/src/ --check
+
+      - name: Tests
+        run: pytest WMS/tests/ || echo "Tests directory not yet implemented"

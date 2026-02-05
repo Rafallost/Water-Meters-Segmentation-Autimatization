@@ -1,0 +1,35 @@
+name: Release & Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted  # Must run on EC2 for localhost access to k3s and MLflow
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::036136800740:role/github-actions-role
+          aws-region: eu-central-1
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build + Push Docker
+        run: |
+          ECR_REPO=036136800740.dkr.ecr.eu-central-1.amazonaws.com/wms-model
+          docker build -f docker/Dockerfile.serve -t $ECR_REPO:latest .
+          docker push $ECR_REPO:latest
+
+      - name: Deploy via Helm
+        run: |
+          helm upgrade --install wms-model devops/helm/ml-model/ \
+            -f infrastructure/helm-values.yaml \
+            --namespace model-$(git rev-parse --short HEAD) \
+            --create-namespace
