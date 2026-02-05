@@ -1,9 +1,23 @@
 import subprocess
 import os
 import sys
+
+# Windows: ensure UTF-8 output for unicode characters (no-op on Linux/CI)
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+
 import torch
 import matplotlib.pyplot as plt
 import numpy as np
+import argparse
+import json
+import random
+import yaml
+import hashlib
+from pathlib import Path
+import mlflow
+import mlflow.pytorch
 
 from torch import nn, optim
 from torch.utils.data import DataLoader
@@ -61,6 +75,45 @@ def safe_hausdorff(pred_mask, gt_mask):
         hd2 = directed_hausdorff(m_pts, p_pts)[0]
         return max(hd1, hd2)
 
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+def load_config(config_path):
+    with open(config_path) as f:
+        return yaml.safe_load(f)
+
+
+def get_data_version():
+    dvc_lock = Path("dvc.lock")
+    if dvc_lock.exists():
+        return hashlib.md5(dvc_lock.read_bytes()).hexdigest()[:8]
+    return "unknown"
+
+
+def get_model_version():
+    git_sha = os.environ.get("GITHUB_SHA", "local")[:7]
+    return f"{git_sha}-{get_data_version()}"
+
+
+# ---------------------------------------------------------------------------
+# CLI + seed
+# ---------------------------------------------------------------------------
+
+parser = argparse.ArgumentParser(description="Train WaterMetersUNet")
+parser.add_argument("--config", default="WMS/configs/train.yaml")
+parser.add_argument("--seed", type=int, default=42)
+args = parser.parse_args()
+
+config = load_config(args.config)
+
+torch.manual_seed(args.seed)
+np.random.seed(args.seed)
+random.seed(args.seed)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(args.seed)
+
 # Prepare data
 prepare_script = os.path.join(os.path.dirname(__file__), 'prepareDataset.py')
 subprocess.run([sys.executable, prepare_script], check=True)
@@ -80,15 +133,21 @@ testImagePaths, testMaskPaths   = gather_paths('test')
 valImagePaths,  valMaskPaths    = gather_paths('val')
 
 # Use augmented transforms for training, simple transforms for val/test
-trainTransforms = TrainTransforms(p_hflip=0.5, p_vflip=0.3, rotation_degrees=10, p_rotate=0.5)
+trainTransforms = TrainTransforms(
+    p_hflip=config["augmentation"]["horizontal_flip"],
+    p_vflip=config["augmentation"]["vertical_flip"],
+    rotation_degrees=config["augmentation"]["rotation_degrees"],
+    p_rotate=config["augmentation"]["rotation_prob"],
+)
 trainDataset = WMSDataset(trainImagePaths, trainMaskPaths, paired_transforms=trainTransforms)
 valDataset   = WMSDataset(valImagePaths,   valMaskPaths,   imageTransforms=valTransforms)
 testDataset  = WMSDataset(testImagePaths,  testMaskPaths,  imageTransforms=valTransforms)
 
 # DataLoaders
-trainLoader = DataLoader(trainDataset, batch_size=4, shuffle=True)
-valLoader   = DataLoader(valDataset,   batch_size=4, shuffle=False)
-testLoader  = DataLoader(testDataset,  batch_size=4, shuffle=False)
+batch_size = config["training"]["batch_size"]
+trainLoader = DataLoader(trainDataset, batch_size=batch_size, shuffle=True)
+valLoader   = DataLoader(valDataset,   batch_size=batch_size, shuffle=False)
+testLoader  = DataLoader(testDataset,  batch_size=batch_size, shuffle=False)
 
 # Device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -99,16 +158,24 @@ model = WaterMetersUNet(inChannels=3, outChannels=1).to(device)
 # Revert to pos_weight=1.0 after pos_weight=43 caused training instability
 pos_weight = torch.tensor([1.0], device=device)
 criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-# Increase LR from 5e-5 to 1e-4 for faster convergence, add weight_decay for regularization
-optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-4)
-scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
+optimizer = optim.Adam(
+    model.parameters(),
+    lr=config["training"]["learning_rate"],
+    weight_decay=config["training"]["weight_decay"],
+)
+scheduler = ReduceLROnPlateau(
+    optimizer, mode='min',
+    factor=config["training"]["scheduler"]["factor"],
+    patience=config["training"]["scheduler"]["patience"],
+    min_lr=config["training"]["scheduler"]["min_lr"],
+)
 
 # Tracking
 trainLosses, valLosses, testLosses = [], [], []
 trainAccs, valAccs, testAccs = [], [], []
 trainDice, valDice, testDice = [], [], []
 trainIoU, valIoU, testIoU = [], [], []
-numEpochs = 100
+numEpochs = config["training"]["epochs"]
 bestVal = float('inf')
 patienceCtr = 0
 
@@ -124,7 +191,7 @@ previousBestVal = float('inf')
 
 if os.path.exists(best_path):
     print("Found existing best.pth - validating to establish baseline...")
-    model.load_state_dict(torch.load(best_path))
+    model.load_state_dict(torch.load(best_path, map_location=device))
     model.eval()
     runningLoss = 0.0
     with torch.no_grad():
@@ -137,8 +204,39 @@ if os.path.exists(best_path):
     print("="*80)
     # Reset model for training
     model = WaterMetersUNet(inChannels=3, outChannels=1).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-4)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
+    optimizer = optim.Adam(
+        model.parameters(),
+        lr=config["training"]["learning_rate"],
+        weight_decay=config["training"]["weight_decay"],
+    )
+    scheduler = ReduceLROnPlateau(
+        optimizer, mode='min',
+        factor=config["training"]["scheduler"]["factor"],
+        patience=config["training"]["scheduler"]["patience"],
+        min_lr=config["training"]["scheduler"]["min_lr"],
+    )
+
+# MLflow experiment tracking
+tracking_uri = os.environ.get("MLFLOW_TRACKING_URI")
+if tracking_uri:
+    mlflow.set_tracking_uri(tracking_uri)
+mlflow.set_experiment("water-meter-segmentation")
+mlflow.start_run(run_name=get_model_version())
+mlflow.log_params({
+    "seed": args.seed,
+    "epochs": numEpochs,
+    "batch_size": config["training"]["batch_size"],
+    "learning_rate": config["training"]["learning_rate"],
+    "weight_decay": config["training"]["weight_decay"],
+    "early_stopping_patience": config["training"]["early_stopping_patience"],
+    "scheduler_factor": config["training"]["scheduler"]["factor"],
+    "scheduler_patience": config["training"]["scheduler"]["patience"],
+    "hflip": config["augmentation"]["horizontal_flip"],
+    "vflip": config["augmentation"]["vertical_flip"],
+    "rotation_degrees": config["augmentation"]["rotation_degrees"],
+    "rotation_prob": config["augmentation"]["rotation_prob"],
+    "color_jitter_prob": config["augmentation"]["color_jitter_prob"],
+})
 
 # Training loop
 for epoch in range(1, numEpochs + 1):
@@ -232,6 +330,12 @@ for epoch in range(1, numEpochs + 1):
           f" - Val Loss: {avgValLoss:.4f}, Acc: {avgValAcc:.4f}, Dice: {avgValDice:.4f}, IoU: {avgValIoU:.4f}"
           f" - Test Loss: {avgTestLoss:.4f}, Acc: {avgTestAcc:.4f}, Dice: {avgTestDice:.4f}, IoU: {avgTestIoU:.4f}")
 
+    mlflow.log_metrics({
+        "train_loss": avgTrainLoss, "train_dice": avgTrainDice, "train_iou": avgTrainIoU,
+        "val_loss": avgValLoss,     "val_dice": avgValDice,     "val_iou": avgValIoU,
+        "test_loss": avgTestLoss,   "test_dice": avgTestDice,   "test_iou": avgTestIoU,
+    }, step=epoch)
+
     # Save best result for current session (after all metrics are calculated)
     if avgValLoss < bestSessionVal:
         bestSessionVal = avgValLoss
@@ -253,7 +357,7 @@ for epoch in range(1, numEpochs + 1):
         print(f"  → Saved best-current-session.pth (epoch {epoch}, val_loss: {avgValLoss:.4f})")
     else:
         patienceCtr += 1
-        if patienceCtr >= 5:
+        if patienceCtr >= config["training"]["early_stopping_patience"]:
             print("Early stopping")
             break
 
@@ -294,9 +398,10 @@ Training Session - {timestamp}
 {'='*80}
 Configuration:
   - Epochs: {numEpochs}
-  - Early stopping patience: 5
-  - Learning rate: 1e-4
-  - Batch size: 4
+  - Early stopping patience: {config["training"]["early_stopping_patience"]}
+  - Learning rate: {config["training"]["learning_rate"]}
+  - Batch size: {config["training"]["batch_size"]}
+  - Seed: {args.seed}
 
 Best Model (epoch {bestSessionEpoch}):
   Validation Metrics:
@@ -357,7 +462,7 @@ for fname, ylabel, train_data, val_data, test_data in metrics:
 # Load best.pth for final evaluation
 print("\n" + "="*80)
 print("Loading best.pth for final evaluation...")
-model.load_state_dict(torch.load(best_path))
+model.load_state_dict(torch.load(best_path, map_location=device))
 print("="*80)
 
 # Final metrics on test set
@@ -411,3 +516,22 @@ for i in range(images.shape[0]):
     plt.savefig(os.path.join(results_dir, f'plot_pred_{i}.png'))
     print(f"  → Saved plot_pred_{i}.png")
     plt.show()
+
+# Write metrics.json (DVC metrics output; train-with-retry.py reads this)
+metrics_out = {
+    "val_dice": float(bestSessionMetrics.get("val_dice", 0.0)),
+    "val_iou": float(bestSessionMetrics.get("val_iou", 0.0)),
+    "test_dice": float(np.mean(dice_scores)),
+    "test_iou": float(np.mean(iou_scores)),
+    "test_hausdorff": float(np.mean(hausdorff_dists)),
+}
+with open(os.path.join(models_dir, 'metrics.json'), 'w') as f:
+    json.dump(metrics_out, f, indent=2)
+print("  → Saved metrics.json")
+
+# Log plots and model to MLflow
+for png in sorted(Path(results_dir).glob("*.png")):
+    mlflow.log_artifact(str(png), artifact_path="plots")
+mlflow.pytorch.log_model(model, name="model")
+mlflow.end_run()
+print("  → MLflow run finished")

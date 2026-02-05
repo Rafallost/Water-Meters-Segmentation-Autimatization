@@ -179,6 +179,10 @@ WMS/models/*
 # Prediction outputs
 WMS/data/predictions/predicted_masks/
 
+# MLflow local tracking (smoke-test / dev artefacts; CI uses a server URI)
+mlflow.db
+mlruns/
+
 # DVC internals
 .dvc/tmp/
 
