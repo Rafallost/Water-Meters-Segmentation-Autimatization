@@ -173,10 +173,8 @@ cython_debug/
 WMS/data/training/temp/
 
 # Local model checkpoints — MLflow is source of truth, not Git
-WMS/models/
-
-# Generated plots
-WMS/Results/
+WMS/models/*
+!WMS/models/best.pth
 
 # Prediction outputs
 WMS/data/predictions/predicted_masks/
