@@ -12,6 +12,7 @@ tqdm
 mlflow
 fastapi
 uvicorn
+python-multipart
 prometheus-client
 pytest
 requests
