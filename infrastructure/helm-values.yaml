@@ -8,6 +8,9 @@ image:
   pullPolicy: Always
   tag: "latest"
 
+imagePullSecrets:
+  - name: ecr-secret
+
 service:
   type: NodePort
   port: 8000
