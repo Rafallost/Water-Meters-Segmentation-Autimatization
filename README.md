@@ -1,170 +1,420 @@
-# Water Meters Segmentation
+# Water Meters Segmentation - Automated ML Pipeline
 
-A deep learning project for segmenting water meter displays using U-Net architecture.
+[![CI Pipeline](https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization/workflows/CI%20Pipeline/badge.svg)](https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization/actions)
 
-**Course**: Fundamentals of Artificial Intelligence
+**Automated ML training and deployment pipeline for water meter segmentation using U-Net**
 
-## Model Architecture
+This project demonstrates DevOps best practices applied to machine learning, featuring:
+- ✅ Automated data validation and versioning
+- ✅ Ephemeral infrastructure (70% cost savings)
+- ✅ Quality-gated training pipeline (3 attempts per PR)
+- ✅ MLflow experiment tracking
+- ✅ Infrastructure as Code (Terraform)
 
-Enhanced U-Net encoder-decoder architecture with double convolution blocks for binary segmentation.
+**Bachelor's Thesis Project:** "Application of DevOps Techniques in Implementing Automatic CI/CD Process for Training and Versioning AI Models"
 
-| Component  | Description                                                         |
-| ---------- | ------------------------------------------------------------------- |
-| Encoder    | 4 levels with double Conv2d blocks + BatchNorm2d + ReLU + MaxPool2d |
-| Bottleneck | Deepest feature representation (256 channels)                       |
-| Decoder    | 4 levels with upsampling + skip connections + double Conv2d blocks  |
-| Output     | 1 channel binary mask                                               |
+---
 
-**Key improvements:**
+## 🚀 Quick Start
 
-- Double convolution blocks in each encoder/decoder level (standard U-Net architecture)
-- 4 encoder levels (16→32→64→128→256 channels) for deeper feature extraction
-- Symmetric decoder path with skip connections for precise localization
+### For Users: Upload New Training Data
 
-| Parameter            | Value           |
-| -------------------- | --------------- |
-| Input channels       | 3 (RGB)         |
-| Output channels      | 1 (binary mask) |
-| Input size           | 512x512         |
-| Total parameters     | 1,965,569       |
-| Trainable parameters | 1,965,569       |
+```bash
+# 1. Add your images and masks
+cp /path/to/new/*.jpg WMS/data/training/images/
+cp /path/to/new/*.png WMS/data/training/masks/
 
-### Architecture Comparison
+# 2. Commit and push
+git add WMS/data/training/
+git commit -m "data: add new training samples"
+git push origin HEAD:data/staging  # Magic branch - auto-creates PR
 
-The implementation follows the original U-Net architecture [(Ronneberger et al., 2015)](https://medium.com/@coffee_and_notes/computer-vision-u-net-6d21e08b09d7) with modern improvements:
+# 3. Wait ~10 minutes for training
+# 4. Check PR for training results
+# 5. Merge if model improved!
+```
 
-![Original U-Net Architecture](Results/img/U-NET.png)
+**That's it!** The system handles:
+- Data validation
+- Model training (3 attempts with different seeds)
+- Quality comparison against baseline
+- Model promotion to MLflow
+- Auto-approval if model improves
 
-**Core U-Net principles maintained:**
+👉 **[Full usage guide](docs/USAGE.md)**
 
-- 4-level encoder-decoder with skip connections
-- Double convolution blocks per stage
-- Max pooling for downsampling
-- Symmetric architecture
+---
 
-**Modern adaptations:**
+## 📚 Documentation
 
-- Smaller channel counts (16→256 vs. 64→1024) for efficient training on smaller datasets
-- Batch normalization after each convolution for training stability
-- Bilinear interpolation instead of transposed convolutions for smoother upsampling
-- Same-padding convolutions to preserve spatial dimensions
-- Optimized to 1.97M parameters (vs. ~31M in original)
+| Document | Description |
+|----------|-------------|
+| **[WORKFLOWS.md](docs/WORKFLOWS.md)** | ⭐ **Start here!** Explains all pipelines and when they run |
+| **[USAGE.md](docs/USAGE.md)** | Step-by-step guide for uploading data and using the system |
+| **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** | System design, components, data flow |
+| **[devops/PLAN.md](devops/PLAN.md)** | Implementation phases (for developers) |
+| **[devops/CLAUDE.md](devops/CLAUDE.md)** | Project context (for AI assistants) |
 
-## Project Structure
+---
+
+## 🏗️ System Overview
 
 ```
-Water-Meters-Segmentation/
-├── .gitignore                    # Git ignore configuration
+User → Upload Data → Data QA → Training (EC2 auto-start)
+  → Quality Gate → Model Promotion → EC2 auto-stop
+  → Merge PR → Deploy (future)
+```
+
+### Key Features
+
+**Ephemeral Infrastructure**
+- EC2 instance only runs during training (~10 min)
+- Cost: ~$4/month instead of ~$18/month (70% savings)
+- Fully automated start/stop via GitHub Actions
+
+**Quality-Gated Training**
+- 3 training attempts per PR (different random seeds)
+- Compares to baseline: Dice 0.9275, IoU 0.8865
+- Auto-promotes best model to MLflow Production
+- Auto-approves PR if model improves
+
+**Data Versioning**
+- DVC integration with S3 backend
+- Git tracks metadata, S3 stores large files
+- POC mode: Small datasets tracked in Git directly
+
+**Experiment Tracking**
+- MLflow server on EC2
+- Tracks metrics, hyperparameters, artifacts
+- Model registry with versioning (Staging/Production)
+
+---
+
+## 🧠 Model Architecture
+
+**U-Net for Semantic Segmentation**
+
+```
+Input: 512×512 RGB image (water meter photo)
+  ↓
+Encoder (4 levels): 16→32→64→128→256 channels
+  ↓
+Bottleneck: 256 channels
+  ↓
+Decoder (4 levels) + skip connections
+  ↓
+Output: 512×512 binary mask (meter region)
+```
+
+| Metric | Baseline (v1) | Current Best |
+|--------|---------------|--------------|
+| **Dice Coefficient** | 0.9275 | _(depends on training)_ |
+| **IoU** | 0.8865 | _(depends on training)_ |
+| **Parameters** | 1,965,569 | 1,965,569 |
+| **Model Size** | 7.6 MB | 7.6 MB |
+
+**Framework:** PyTorch
+**Architecture:** Enhanced U-Net [(Ronneberger et al., 2015)](https://arxiv.org/abs/1505.04597)
+
+---
+
+## 🔄 Workflows
+
+| Workflow | Purpose | Trigger | Duration |
+|----------|---------|---------|----------|
+| **Train Model** | Main training pipeline | PR to main | ~10 min |
+| **Data QA** | Validate data quality | PR to main | ~30 sec |
+| **Data Upload** | Version data, create PR | Push to `data/*` | ~1 min |
+| **CI Pipeline** | Lint and test | Every PR | ~2 min |
+| **EC2 Control** | Start/stop infrastructure | Called by other workflows | ~30 sec |
+
+👉 **[Detailed workflow explanations](docs/WORKFLOWS.md)**
+
+---
+
+## 🛠️ Technology Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **ML Framework** | PyTorch |
+| **Experiment Tracking** | MLflow |
+| **Data Versioning** | DVC + S3 |
+| **Infrastructure** | AWS (EC2, S3, ECR) |
+| **IaC** | Terraform |
+| **Container Orchestration** | k3s (lightweight Kubernetes) |
+| **CI/CD** | GitHub Actions |
+| **Deployment** | Helm (future) |
+
+---
+
+## 💰 Cost Breakdown
+
+**Current (with ephemeral infrastructure):**
+- EC2 (t3.small, ephemeral): ~$2-3/month
+- S3 storage: ~$1/month
+- **Total: ~$4/month**
+
+**Traditional (24/7 EC2):**
+- EC2 (t3.small, always on): ~$15/month
+- S3 storage: ~$1/month
+- **Total: ~$18/month**
+
+**Savings: 70-80%**
+
+👉 **[Architecture details](docs/ARCHITECTURE.md)**
+
+---
+
+## 🎯 Core Flow
+
+```mermaid
+graph TD
+    A[User: Upload Data] --> B[Data QA]
+    B -->|PASS| C[Create PR]
+    B -->|FAIL| Z[Error Comment]
+    C --> D[Start EC2]
+    D --> E[Train Attempt 1]
+    D --> F[Train Attempt 2]
+    D --> G[Train Attempt 3]
+    E --> H[Aggregate Results]
+    F --> H
+    G --> H
+    H -->|Improved| I[Promote to Production]
+    H -->|Not Improved| J[Reject PR]
+    I --> K[Auto-Approve PR]
+    K --> L[User: Merge PR]
+    H --> M[Stop EC2]
+    J --> M
+```
+
+---
+
+## 📊 Project Status
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Phase 1: Data Foundation | ✅ Complete | DVC, data QA scripts |
+| Phase 2: Core Scripts | ✅ Complete | Validation, quality gates |
+| Phase 3: GitHub Workflows | ✅ Complete | All pipelines implemented |
+| Phase 4: Infrastructure | ✅ Complete | Terraform, EC2, MLflow |
+| Phase 5: Training Pipeline | ✅ Complete | Ephemeral training with quality gates |
+| Phase 6: Deployment | 🚧 In Progress | Docker + k3s deployment |
+| Phase 7: Documentation | ✅ Complete | Comprehensive docs |
+| Phase 8: Monitoring | 📅 Planned | Prometheus + Grafana |
+| Phase 9: Thesis Writing | 📅 Planned | Academic documentation |
+
+---
+
+## 🚦 Getting Started
+
+### Prerequisites
+
+- **AWS Account** (AWS Academy Learner Lab for students)
+- **GitHub Account**
+- **Local Tools:**
+  - Python 3.12+
+  - Git
+  - AWS CLI v2
+  - Terraform 1.0+
+
+### Initial Setup
+
+```bash
+# 1. Clone repository with submodules
+git clone --recurse-submodules https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization.git
+cd Water-Meters-Segmentation-Autimatization
+
+# 2. Configure AWS credentials
+aws configure
+# Or for AWS Academy: Update ~/.aws/credentials with session credentials
+
+# 3. Deploy infrastructure
+cd devops/terraform
+terraform init
+terraform apply
+
+# 4. Configure GitHub Secrets
+# AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
+
+# 5. Install pre-push hook (optional)
+cp devops/hooks/pre-push .git/hooks/
+chmod +x .git/hooks/pre-push
+```
+
+👉 **[Detailed setup guide](docs/SETUP.md)** _(TODO)_
+
+---
+
+## 📈 Training Results
+
+Training metrics are logged to MLflow and posted as PR comments.
+
+**Example successful training:**
+
+```
+## ✅ Training Results (3 attempts)
+
+📈 MODEL IMPROVED
+
+### Best Result (Attempt 2)
+| Metric | Value  | Baseline | Status |
+|--------|--------|----------|--------|
+| Dice   | 0.9350 | 0.9275   | ✅ +0.81% |
+| IoU    | 0.8920 | 0.8865   | ✅ +0.62% |
+
+🚀 Best model promoted to Production
+```
+
+Access MLflow UI: `http://<EC2_IP>:5000` (when EC2 is running)
+
+---
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**"Data QA failed - Non-binary mask values"**
+- Masks must contain only 0 and 255
+- Convert JPG masks to PNG to avoid compression artifacts
+- Run `python devops/scripts/data-qa.py WMS/data/training/` locally
+
+**"Training failed - All 3 attempts"**
+- Model didn't improve over baseline
+- Check if new data is sufficient/correct
+- Review training logs in GitHub Actions
+
+**"AWS credentials expired"**
+- AWS Academy credentials expire every 4 hours
+- Update `~/.aws/credentials` and GitHub Secrets
+
+**"EC2 costs too high"**
+- Ensure ephemeral infrastructure is working
+- Run `devops/scripts/cleanup-aws.sh` when done
+
+👉 **[Full troubleshooting guide](docs/USAGE.md#-troubleshooting)**
+
+---
+
+## 🧹 Cleanup
+
+**IMPORTANT:** Run this when you're done to avoid AWS costs:
+
+```bash
+cd devops
+bash scripts/cleanup-aws.sh
+```
+
+This will:
+- Stop EC2 instance
+- Empty S3 buckets
+- Destroy all Terraform-managed resources
+
+---
+
+## 📁 Repository Structure
+
+```
+Water-Meters-Segmentation-Autimatization/
+├── WMS/                          # ML code and data
+│   ├── src/                      # Training, inference scripts
+│   │   ├── train.py              # Main training script
+│   │   ├── model.py              # U-Net architecture
+│   │   ├── dataset.py            # Data loading
+│   │   └── prepareDataset.py     # Data splitting
+│   ├── data/
+│   │   └── training/             # Training data (Git/DVC)
+│   │       ├── images/           # Input photos
+│   │       ├── masks/            # Ground truth masks
+│   │       └── *.dvc             # DVC metadata
+│   ├── configs/
+│   │   └── train.yaml            # Hyperparameters
+│   ├── models/                   # Local checkpoints (gitignored)
+│   └── tests/                    # Unit tests
+├── .github/workflows/            # CI/CD pipelines
+│   ├── train.yml                 # ⭐ Main training workflow
+│   ├── data-qa.yaml              # Data validation
+│   ├── data-upload.yaml          # Data versioning + PR creation
+│   ├── ec2-control.yaml          # Infrastructure start/stop
+│   ├── ci.yaml                   # Linting and tests
+│   └── data-staging.yaml         # Auto-branch creation
+├── docs/                         # 📚 Documentation
+│   ├── WORKFLOWS.md              # All pipelines explained
+│   ├── USAGE.md                  # How-to guide
+│   └── ARCHITECTURE.md           # System design
+├── devops/                       # 🔧 Infrastructure (submodule)
+│   ├── terraform/                # IaC
+│   ├── helm/                     # Kubernetes deployment
+│   ├── scripts/                  # Automation
+│   │   ├── data-qa.py            # Data validation
+│   │   ├── quality-gate.py       # Model comparison
+│   │   └── cleanup-aws.sh        # Resource teardown
+│   ├── hooks/                    # Git hooks
+│   ├── PLAN.md                   # Implementation phases
+│   └── CLAUDE.md                 # AI assistant context
 ├── README.md                     # This file
-├── Results/
-│   ├── custom_images/            # Self-taken photos of water meters
-│   ├── custom_predictions/       # Predicted masks for self-taken photos
-│   ├── Report_EN.md              # Comprehensive project report
-│   ├── Report_PL.pdf             # Original Polish report (obsolete)
-│   ├── Example_Prediction_*.png  # Example predictions (4 files)
-│   ├── Pixel_Distribution_*.png  # Dataset statistics (3 files)
-│   ├── Distribution_Set_Plot.png # Dataset split visualization
-│   ├── plot_*.png                # Training curves (2 files)
-│   └── Terminal.log              # Training output log
-└── WMS/
-    ├── data/
-    │   ├── training/
-    │   │   ├── images/           # [REQUIRED] Source images
-    │   │   ├── masks/            # [REQUIRED] Source masks
-    │   │   └── temp/             # [AUTO-GENERATED] Train/val/test splits
-    │   │       ├── train/        #  80% of source
-    │   │       ├── val/          #  10% of source
-    │   │       └── test/         #  10% of source
-    │   └── predictions/
-    │       ├── photos_to_predict/  # [USER INPUT] Images to predict
-    │       └── predicted_masks/    # [AUTO-GENERATED] Output masks
-    ├── models/
-    │   ├── best.pth              # [AUTO-GENERATED] Best checkpoint
-    │   └── unet_epoch*.pth       # [AUTO-GENERATED] Epoch checkpoints
-    └── src/
-        ├── dataset.py            # PyTorch Dataset class
-        ├── model.py              # U-Net architecture
-        ├── transforms.py         # Image preprocessing
-        ├── prepareDataset.py     # Data splitting (80/10/10)
-        ├── train.py              # Training loop + metrics
-        └── predicts.py           # Inference (no temp dirs needed)
+└── requirements.txt              # Python dependencies
 ```
 
-**Key Notes:**
+---
 
-- `[REQUIRED]` directories must exist with data before training
-- `[AUTO-GENERATED]` directories are created automatically by scripts
-- `[USER INPUT]` directories are where you place new images for predictions
-- The `temp/` directory is ignored by git (temporary training splits)
-- `predicts.py` works independently with just `best.pth` and input images
+## 🎓 Academic Context
 
-## Requirements
+**Bachelor's Thesis Project**
+**Title:** "Application of DevOps Techniques in Implementing Automatic CI/CD Process for Training and Versioning AI Models"
 
-- Python 3.x
-- PyTorch 2.6.0+cu118
-- Torchvision 0.21.0+cpu
-- CUDA 11.8
-- OpenCV (cv2)
-- NumPy
-- SciPy
-- scikit-learn
-- matplotlib
-- torchsummary
+**Objectives:**
+1. Compare manual vs. automated ML deployment workflows
+2. Demonstrate cost optimization through ephemeral infrastructure
+3. Implement quality gates for model versioning
+4. Document best practices for ML DevOps
 
-## Usage
+**Key Results:**
+- 70% cost reduction through ephemeral EC2 usage
+- Automated quality-gated training pipeline
+- Comprehensive experiment tracking with MLflow
+- Reproducible infrastructure via Terraform
 
-### Training Workflow
+---
 
-**Prerequisites:**
+## 🤝 Contributing
 
-- Place your dataset in `WMS/data/training/`:
-  - Images: `WMS/data/training/images/*.jpg`
-  - Masks: `WMS/data/training/masks/*.jpg`
+This is a thesis project, but feedback is welcome!
 
-**1. Prepare Dataset (optional)**
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-```bash
-python WMS/src/prepareDataset.py
-```
+---
 
-- Splits data into train/val/test sets (80%/10%/10%)
-- Creates temporary directories in `WMS/data/training/temp/`
-- **Not required** - `train.py` runs this automatically
+## 📄 License
 
-**2. Train Model**
+This project is for academic purposes.
 
-```bash
-python WMS/src/train.py
-```
+---
 
-- Automatically runs `prepareDataset.py` first
-- Trains U-Net for 50 epochs with early stopping
-- Saves checkpoints to `WMS/models/`:
-  - `best.pth` - Best model based on validation loss
-  - `unet_epoch{N}.pth` - Checkpoint for each epoch
-- Evaluates on train/val/test sets each epoch
-- Displays training plots and sample predictions
+## 🙏 Acknowledgments
 
-### Inference Workflow
+- Original U-Net paper: [Ronneberger et al., 2015](https://arxiv.org/abs/1505.04597)
+- Course: Fundamentals of Artificial Intelligence
+- MLflow, DVC, and Terraform communities
 
-**Prerequisites:**
+---
 
-- A trained model: `WMS/models/best.pth`
-- Input images: Place JPG files in `WMS/data/predictions/photos_to_predict/`
+## 📧 Contact
 
-**Run Predictions**
+- **GitHub Issues:** [Report bugs or ask questions](https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization/issues)
+- **Email:** _(Your email if public)_
 
-```bash
-python WMS/src/predicts.py
-```
+---
 
-- Loads the best trained model
-- Processes all `.jpg` files in `photos_to_predict/`
-- Displays side-by-side comparisons (original | predicted mask)
-- Saves predicted masks to `WMS/data/predictions/predicted_masks/`
-- **No training required** - works with pre-trained models from GitHub
+## 🔗 Related Repositories
 
-## Authors
+- **This repo:** [Water-Meters-Segmentation-Autimatization](https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization) (ML code + workflows)
+- **Infrastructure repo:** [DevOps-AI-Model-Automatization](https://github.com/Rafallost/DevOps-AI-Model-Automatization) (Terraform, Helm, scripts)
+- **Original model repo:** [Water-Meters-Segmentation](https://github.com/Rafallost/Water-Meters-Segmentation) (Baseline, read-only)
 
-- **Wojciech Szewczyk**
-- **Rafal Zablotni**
+---
+
+**⭐ If this project helps you, please star it!**
