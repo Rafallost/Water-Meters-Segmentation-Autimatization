@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - 'WMS/data/training/*.dvc'  # DVC metadata files
+      - 'WMS/data/training/images/**'  # For POC with data in Git
+      - 'WMS/data/training/masks/**'   # For POC with data in Git
       - 'WMS/src/**'
       - 'WMS/configs/**'
   workflow_dispatch:  # Allow manual trigger
