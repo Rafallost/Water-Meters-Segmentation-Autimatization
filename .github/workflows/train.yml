@@ -18,14 +18,53 @@ on:
         default: '3'
 
 permissions:
-  contents: read
+  contents: write  # For auto-merge
   issues: write
   pull-requests: write
 
 jobs:
+  # Data Quality Assurance - validate before training
+  data-qa:
+    name: Data Quality Assurance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install opencv-python numpy Pillow PyYAML
+
+      - name: Run Data QA
+        run: python devops/scripts/data-qa.py WMS/data/training/ --output report.json
+
+      - name: Post report as PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('report.json', 'utf8');
+            const reportData = JSON.parse(report);
+            const status = reportData.status === 'PASS' ? '✅ PASSED' : '❌ FAILED';
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `## Data Quality Assurance ${status}\n\n\`\`\`json\n${report}\n\`\`\``
+            });
+
   # Start EC2 infrastructure before training
   start-infra:
     name: Start EC2 Infrastructure
+    needs: data-qa  # Wait for data validation
     uses: ./.github/workflows/ec2-control.yaml
     with:
       action: start
@@ -460,3 +499,27 @@ jobs:
     with:
       action: stop
     secrets: inherit
+
+  # Auto-merge PR if model improved
+  auto-merge:
+    name: Auto-merge PR
+    needs: [aggregate-results, stop-infra]
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.aggregate-results.outputs.any_improved == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          echo "🚀 Model improved! Enabling auto-merge for PR #$PR_NUMBER"
+
+          # Enable auto-merge with squash
+          gh pr merge $PR_NUMBER --auto --squash --delete-branch
+
+          echo "✅ Auto-merge enabled - PR will merge automatically when all checks pass"
