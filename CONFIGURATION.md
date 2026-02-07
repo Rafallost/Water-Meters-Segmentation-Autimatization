@@ -194,26 +194,135 @@ exit
 
 ## 🛠️ Phase 2: Core DevOps Scripts
 
-### Creating automation scripts for CI/CD pipeline
+### ✅ COMPLETED
 
-**Scripts to create:**
-1. `devops/scripts/data-qa.py` - Data validation
-2. `devops/scripts/quality-gate.py` - Metrics comparison
-3. `devops/scripts/train-with-retry.py` - Training retry logic (optional)
+**Scripts created:**
+1. ✅ `devops/scripts/data-qa.py` - Data validation with image-mask pairing, resolution checks, mask binarity validation
+2. ✅ `devops/scripts/quality-gate.py` - Metrics comparison with baseline (Dice ≥ 0.9075, IoU ≥ 0.8665)
+
+**Status:** SUCCESS
+**Committed and pushed to devops submodule**
 
 ---
 
 ## 🧹 Phase 8: AWS Cleanup Script
 
-### Creating cleanup-aws.sh for budget protection
+### ✅ COMPLETED
 
-**Critical for budget safety!**
+**Script created:**
+- ✅ `devops/scripts/cleanup-aws.sh` - Comprehensive cleanup script that:
+  - Empties S3 buckets (including versioned objects)
+  - Runs terraform destroy
+  - Removes local state files
+  - Includes safety confirmations
+
+**Status:** SUCCESS
+**Committed and pushed to devops submodule**
 
 ---
 
 ## 📊 Phase 6: Application Deployment
 
-[To be filled during deployment]
+### Status: IN PROGRESS (EC2 Instance Issue)
+
+**Completed Steps:**
+
+1. ✅ **Docker Image Built** (3 minutes ago)
+   - Image size: 8.69GB (uncompressed), 4.65GB (compressed in ECR)
+   - Base: Python 3.12-slim
+   - Fixed libgl1-mesa-glx → libgl1 for Python 3.12 compatibility
+
+2. ✅ **Docker Image Pushed to ECR**
+   - Repository: 055677744286.dkr.ecr.us-east-1.amazonaws.com/wms-model:latest
+   - Successfully uploaded to ECR
+
+3. ✅ **Helm Configuration Fixed**
+   - Updated `MLFLOW_TRACKING_URI` to `http://10.0.1.43:5000` (EC2 internal IP)
+   - Added `imagePullSecrets: ecr-secret` for ECR authentication
+   - Disabled `serviceMonitor` (Prometheus not yet deployed)
+   - All changes committed: commits d7b4d02, c069847
+
+4. ✅ **Resolved Disk Pressure Issue**
+   - Cleaned Docker cache: freed 8.569GB
+   - Disk usage: 29% (5.7G used, 15G free)
+   - Manually removed disk-pressure taint from k3s node
+
+5. ✅ **Model Registered to MLflow**
+   - Uploaded baseline model: `best.pth` (7.6MB)
+   - Registered as: `water-meter-segmentation` version 2
+   - Stage: Production
+   - Metrics: Dice 0.9275, IoU 0.8865
+
+6. ✅ **Helm Deployment Executed**
+   ```bash
+   helm upgrade --install wms-model devops/helm/ml-model/ -f infrastructure/helm-values.yaml
+   ```
+   - Deployment created successfully
+   - Service exposed as NodePort on port 31954
+
+**Current Issue:**
+
+⚠️ **EC2 Instance Unresponsive (12:27 UTC onwards)**
+- SSH connection timing out
+- Ping requests timing out
+- Last known state: Pod was pulling 4.65GB image from ECR
+- Pod status before disconnect: ContainerCreating → Running (with 2 restarts)
+
+**Root Cause Analysis:**
+- t3.small instance (2GB RAM) insufficient for 8.69GB Docker image
+- Image pull + extraction likely triggered OOM (Out of Memory)
+- Instance may have crashed or been stopped by AWS
+
+**Recovery Plan:**
+
+**Option A: Restart Instance** (AWS Console or CLI)
+```bash
+# Via AWS CLI
+aws ec2 reboot-instances --instance-ids i-02fb263c90e39258e --region us-east-1
+
+# Or start if stopped
+aws ec2 start-instances --instance-ids i-02fb263c90e39258e --region us-east-1
+```
+
+**Option B: Upgrade Instance Type** (if budget allows)
+```bash
+# Stop instance
+aws ec2 stop-instances --instance-ids i-02fb263c90e39258e --wait
+
+# Change to t3.medium (4GB RAM)
+aws ec2 modify-instance-attribute \
+  --instance-id i-02fb263c90e39258e \
+  --instance-type t3.medium
+
+# Start instance
+aws ec2 start-instances --instance-ids i-02fb263c90e39258e
+```
+
+**Option C: Recreate with Larger Instance**
+```bash
+# Update terraform.tfvars: instance_type = "t3.medium"
+cd devops/terraform
+terraform apply -var-file=../../infrastructure/terraform.tfvars
+```
+
+**Once Instance is Back:**
+```bash
+# Verify connection
+ssh -i ~/.ssh/labsuser.pem ec2-user@13.219.216.230
+
+# Check pod status
+kubectl get pods
+kubectl logs -l app.kubernetes.io/name=ml-model --tail=50
+
+# Test endpoints
+kubectl get svc
+NODE_PORT=$(kubectl get svc wms-model-ml-model -o jsonpath='{.spec.ports[0].nodePort}')
+curl http://13.219.216.230:$NODE_PORT/health
+curl http://13.219.216.230:$NODE_PORT/metrics
+```
+
+**Time Spent:** ~50 minutes
+**Status:** BLOCKED - waiting for instance recovery
 
 ---
 
