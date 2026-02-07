@@ -47,13 +47,24 @@ git push origin HEAD:data/staging  # Magic branch - auto-creates PR
 
 ## 📚 Documentation
 
-| Document | Description |
-|----------|-------------|
-| **[WORKFLOWS.md](docs/WORKFLOWS.md)** | ⭐ **Start here!** Explains all pipelines and when they run |
-| **[USAGE.md](docs/USAGE.md)** | Step-by-step guide for uploading data and using the system |
-| **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** | System design, components, data flow |
-| **[devops/PLAN.md](devops/PLAN.md)** | Implementation phases (for developers) |
-| **[devops/CLAUDE.md](devops/CLAUDE.md)** | Project context (for AI assistants) |
+**[→ Full Documentation Index](docs/README.md)** 📖
+
+### Quick Access:
+
+| Document | Description | When to Read |
+|----------|-------------|--------------|
+| **[WORKFLOWS.md](docs/WORKFLOWS.md)** | ⭐ **Start here!** All pipelines explained | Understanding the system |
+| **[USAGE.md](docs/USAGE.md)** | Step-by-step how-to guide | Daily operations |
+| **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** | System design & components | Deep dive |
+| **[BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md)** | GitHub setup guide | One-time setup |
+
+**For Developers:**
+- [Implementation Plan](devops/PLAN.md) - Development phases
+- [Terraform Docs](devops/terraform/README.md) - Infrastructure
+- [Tests Guide](WMS/tests/README.md) - Unit tests
+
+**For AI Assistants:**
+- [CLAUDE.md](devops/CLAUDE.md) - Project context and rules
 
 ---
 
