@@ -17,8 +17,23 @@ jobs:
 
       - name: Login to ECR
         run: |
-          aws ecr get-login-password --region us-east-1 | \
-            docker login --username AWS --password-stdin 055677744286.dkr.ecr.us-east-1.amazonaws.com
+          python3 << 'EOF'
+          import boto3
+          import subprocess
+          import base64
+
+          ecr = boto3.client('ecr', region_name='us-east-1')
+          token = ecr.get_authorization_token()
+          auth_token = token['authorizationData'][0]['authorizationToken']
+          username, password = base64.b64decode(auth_token).decode().split(':')
+
+          subprocess.run([
+              'docker', 'login',
+              '--username', username,
+              '--password-stdin',
+              '055677744286.dkr.ecr.us-east-1.amazonaws.com'
+          ], input=password.encode(), check=True)
+          EOF
 
       - name: Build + Push Docker
         run: |
