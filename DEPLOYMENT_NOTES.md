@@ -273,3 +273,8 @@ Once deployment is verified working, implement GitHub Actions workflow:
 **Last Updated:** 2026-02-07 12:35 UTC
 **Status:** BLOCKED - Awaiting EC2 instance recovery
 **Next Action:** User to check AWS Console and restart/upgrade instance
+# Test AL2023 Runner
+
+Runner is now on Amazon Linux 2023 with GLIBC 2.34, which supports Node 20 required by GitHub Actions.
+
+Test timestamp: 2026-02-07T16:03:14Z
