@@ -5,35 +5,50 @@ import cv2
 import torch
 import random
 
+
 def to_float_np(img):
     arr = np.array(img).astype(np.float32) / 255.0
     return arr
+
 
 def contrast_stretch(img: np.ndarray):
     p2, p98 = np.percentile(img, (2, 98))
     img = (img - p2) / (p98 - p2 + 1e-6)
     return np.clip(img, 0.0, 1.0)
 
+
 def median_blur(img: np.ndarray):
     u8 = (img * 255).astype(np.uint8)
     blurred = cv2.medianBlur(u8, 3)
     return blurred.astype(np.float32) / 255.0
 
+
 # Validation/Test transforms (no augmentation)
-valTransforms = TRANS.Compose([
-    TRANS.ToPILImage(),
-    TRANS.Resize((512, 512)),
-    TRANS.Lambda(to_float_np),
-    TRANS.Lambda(contrast_stretch),
-    TRANS.Lambda(median_blur),
-    TRANS.Lambda(lambda arr: torch.from_numpy(arr).permute(2, 0, 1)),  # HWC -> CHW
-])
+valTransforms = TRANS.Compose(
+    [
+        TRANS.ToPILImage(),
+        TRANS.Resize((512, 512)),
+        TRANS.Lambda(to_float_np),
+        TRANS.Lambda(contrast_stretch),
+        TRANS.Lambda(median_blur),
+        TRANS.Lambda(lambda arr: torch.from_numpy(arr).permute(2, 0, 1)),  # HWC -> CHW
+    ]
+)
+
 
 class TrainTransforms:
     """
     Training transforms with spatial augmentation applied to both image and mask.
     """
-    def __init__(self, p_hflip=0.5, p_vflip=0.3, rotation_degrees=15, p_rotate=0.5, p_color_jitter=0.3):
+
+    def __init__(
+        self,
+        p_hflip=0.5,
+        p_vflip=0.3,
+        rotation_degrees=15,
+        p_rotate=0.5,
+        p_color_jitter=0.3,
+    ):
         self.p_hflip = p_hflip
         self.p_vflip = p_vflip
         self.rotation_degrees = rotation_degrees
@@ -52,12 +67,15 @@ class TrainTransforms:
         """
         # Convert to PIL for torchvision transforms
         from PIL import Image
+
         image_pil = Image.fromarray(image)
         mask_pil = Image.fromarray((mask * 255).astype(np.uint8))
 
         # Resize
         image_pil = TF.resize(image_pil, [512, 512])
-        mask_pil = TF.resize(mask_pil, [512, 512], interpolation=TF.InterpolationMode.NEAREST)
+        mask_pil = TF.resize(
+            mask_pil, [512, 512], interpolation=TF.InterpolationMode.NEAREST
+        )
 
         # Random horizontal flip
         if random.random() < self.p_hflip:
@@ -72,8 +90,12 @@ class TrainTransforms:
         # Random rotation
         if random.random() < self.p_rotate:
             angle = random.uniform(-self.rotation_degrees, self.rotation_degrees)
-            image_pil = TF.rotate(image_pil, angle, interpolation=TF.InterpolationMode.BILINEAR)
-            mask_pil = TF.rotate(mask_pil, angle, interpolation=TF.InterpolationMode.NEAREST)
+            image_pil = TF.rotate(
+                image_pil, angle, interpolation=TF.InterpolationMode.BILINEAR
+            )
+            mask_pil = TF.rotate(
+                mask_pil, angle, interpolation=TF.InterpolationMode.NEAREST
+            )
 
         # Convert image to numpy for preprocessing
         image_np = np.array(image_pil).astype(np.float32) / 255.0

@@ -11,7 +11,8 @@ from torch.utils.data import DataLoader
 from dataset import WMSDataset
 from transforms import valTransforms
 import matplotlib
-matplotlib.use('Agg')
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 ############### DATA LOAD ###############
@@ -19,53 +20,79 @@ random.seed(42)
 
 # Source data directories
 datasetPath = os.path.dirname(os.path.abspath(__file__))
-sourceImageDir = os.path.join(datasetPath, '..', 'data', 'training', 'images')
-sourceMaskDir  = os.path.join(datasetPath, '..', 'data', 'training', 'masks')
+sourceImageDir = os.path.join(datasetPath, "..", "data", "training", "images")
+sourceMaskDir = os.path.join(datasetPath, "..", "data", "training", "masks")
 
 # Get images and masks names
-imageFiles = sorted([f for f in os.listdir(sourceImageDir) if f.endswith('.jpg')])
-maskFiles = sorted([f for f in os.listdir(sourceMaskDir) if f.endswith('.jpg')])
-assert len(imageFiles) == len(maskFiles), "Amount of images and masks have to be the same"
+imageFiles = sorted([f for f in os.listdir(sourceImageDir) if f.endswith(".jpg")])
+maskFiles = sorted([f for f in os.listdir(sourceMaskDir) if f.endswith(".jpg")])
+assert len(imageFiles) == len(
+    maskFiles
+), "Amount of images and masks have to be the same"
 
 # 80% train, 10% val, 10% test
 trainImgs, tempImgs = train_test_split(imageFiles, test_size=0.2, random_state=42)
 valImgs, testImgs = train_test_split(tempImgs, test_size=0.5, random_state=42)
 
-splits = {'train': trainImgs, 'val': valImgs, 'test': testImgs}
+splits = {"train": trainImgs, "val": valImgs, "test": testImgs}
 
 # Folders creation
-baseDataDir = os.path.join(datasetPath, '..', 'data', 'training', 'temp')
+baseDataDir = os.path.join(datasetPath, "..", "data", "training", "temp")
 for split, files in splits.items():
-    for subfolder in ['images', 'masks']:
+    for subfolder in ["images", "masks"]:
         os.makedirs(os.path.join(baseDataDir, split, subfolder), exist_ok=True)
     for fname in files:
-        shutil.copy(os.path.join(sourceImageDir, fname), os.path.join(baseDataDir, split, 'images', fname))
-        shutil.copy(os.path.join(sourceMaskDir, fname), os.path.join(baseDataDir, split, 'masks', fname))
+        shutil.copy(
+            os.path.join(sourceImageDir, fname),
+            os.path.join(baseDataDir, split, "images", fname),
+        )
+        shutil.copy(
+            os.path.join(sourceMaskDir, fname),
+            os.path.join(baseDataDir, split, "masks", fname),
+        )
 
 os.makedirs("../models", exist_ok=True)
 
-results_dir = os.path.join(datasetPath, '..', 'Results')
+results_dir = os.path.join(datasetPath, "..", "Results")
 os.makedirs(results_dir, exist_ok=True)
 
 # Load data from folder 'train'
-trainImagePaths = [os.path.join(baseDataDir, 'train', 'images', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'train', 'images')) if f.endswith('.jpg')]
-trainMaskPaths  = [os.path.join(baseDataDir, 'train', 'masks', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'train', 'masks')) if f.endswith('.jpg')]
+trainImagePaths = [
+    os.path.join(baseDataDir, "train", "images", f)
+    for f in os.listdir(os.path.join(baseDataDir, "train", "images"))
+    if f.endswith(".jpg")
+]
+trainMaskPaths = [
+    os.path.join(baseDataDir, "train", "masks", f)
+    for f in os.listdir(os.path.join(baseDataDir, "train", "masks"))
+    if f.endswith(".jpg")
+]
 
-testImagePaths = [os.path.join(baseDataDir, 'test', 'images', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'test', 'images')) if f.endswith('.jpg')]
-testMaskPaths  = [os.path.join(baseDataDir, 'test', 'masks', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'test', 'masks')) if f.endswith('.jpg')]
+testImagePaths = [
+    os.path.join(baseDataDir, "test", "images", f)
+    for f in os.listdir(os.path.join(baseDataDir, "test", "images"))
+    if f.endswith(".jpg")
+]
+testMaskPaths = [
+    os.path.join(baseDataDir, "test", "masks", f)
+    for f in os.listdir(os.path.join(baseDataDir, "test", "masks"))
+    if f.endswith(".jpg")
+]
 
-valImagePaths = [os.path.join(baseDataDir, 'val', 'images', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'val', 'images')) if f.endswith('.jpg')]
-valMaskPaths  = [os.path.join(baseDataDir, 'val', 'masks', f)
-                   for f in os.listdir(os.path.join(baseDataDir, 'val', 'masks')) if f.endswith('.jpg')]
+valImagePaths = [
+    os.path.join(baseDataDir, "val", "images", f)
+    for f in os.listdir(os.path.join(baseDataDir, "val", "images"))
+    if f.endswith(".jpg")
+]
+valMaskPaths = [
+    os.path.join(baseDataDir, "val", "masks", f)
+    for f in os.listdir(os.path.join(baseDataDir, "val", "masks"))
+    if f.endswith(".jpg")
+]
 
 trainDataset = WMSDataset(trainImagePaths, trainMaskPaths, valTransforms)
 testDataset = WMSDataset(testImagePaths, testMaskPaths, valTransforms)
-valDataset  = WMSDataset(valImagePaths,  valMaskPaths,   valTransforms)
+valDataset = WMSDataset(valImagePaths, valMaskPaths, valTransforms)
 
 print(f"trainDataset length(train part): {len(trainDataset)}")
 print(f"testDataset length(train part): {len(testDataset)}")
@@ -73,6 +100,7 @@ print(f"valDataset length(train part): {len(valDataset)}")
 
 dataLoader = DataLoader(trainDataset, batch_size=5, shuffle=True)
 images, masks = next(iter(dataLoader))
+
 
 ############### DATA VERIFICATION ###############
 def count_pixel_balance(mask_paths, dataset_name):
@@ -100,9 +128,12 @@ def count_pixel_balance(mask_paths, dataset_name):
     plt.ylabel("number of pixels")
     plt.title(f"Pixel distribution for the set: {dataset_name}")
     plt.tight_layout()
-    plt.savefig(os.path.join(results_dir, f'plot_pixel_balance_{dataset_name.lower()}.png'))
+    plt.savefig(
+        os.path.join(results_dir, f"plot_pixel_balance_{dataset_name.lower()}.png")
+    )
     print(f"  → Saved plot_pixel_balance_{dataset_name.lower()}.png")
     plt.show()
+
 
 ############### DEVICE CONFIGURATION ###############
 # determine the device to be used for training and evaluation
@@ -111,7 +142,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 PIN_MEMORY = True if DEVICE == "cuda" else False
 
 ############### VISUALIZATION (only when run directly) ###############
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Count balances
     count_pixel_balance(trainMaskPaths, "Train")
     count_pixel_balance(valMaskPaths, "Validation")
@@ -119,15 +150,21 @@ if __name__ == '__main__':
 
     # Dataset split pie chart
     sizes = [len(trainImgs), len(valImgs), len(testImgs)]
-    labels = ['Train', 'Validation', 'Test']
+    labels = ["Train", "Validation", "Test"]
 
     plt.figure(figsize=(6, 6))
-    plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140,
-            pctdistance=0.85, labeldistance=1.1)
-    plt.title('Dataset Split', pad=20)
-    plt.axis('equal')  # Equal aspect ratio ensures pie is drawn as a circle.
+    plt.pie(
+        sizes,
+        labels=labels,
+        autopct="%1.1f%%",
+        startangle=140,
+        pctdistance=0.85,
+        labeldistance=1.1,
+    )
+    plt.title("Dataset Split", pad=20)
+    plt.axis("equal")  # Equal aspect ratio ensures pie is drawn as a circle.
     plt.tight_layout()
-    plt.savefig(os.path.join(results_dir, 'plot_dataset_split.png'))
+    plt.savefig(os.path.join(results_dir, "plot_dataset_split.png"))
     print(f"  → Saved plot_dataset_split.png")
     plt.show()
 
@@ -138,12 +175,12 @@ if __name__ == '__main__':
         mask = masks[i].squeeze().numpy()
         axs[i, 0].imshow(image)
         axs[i, 0].set_title("Image")
-        axs[i, 1].imshow(mask, cmap='gray')
+        axs[i, 1].imshow(mask, cmap="gray")
         axs[i, 1].set_title("Mask")
         axs[i, 0].axis("off")
         axs[i, 1].axis("off")
     plt.tight_layout()
-    plt.savefig(os.path.join(results_dir, 'plot_samples.png'))
+    plt.savefig(os.path.join(results_dir, "plot_samples.png"))
     print(f"  → Saved plot_samples.png")
     plt.show()
 

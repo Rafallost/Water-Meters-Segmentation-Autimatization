@@ -9,7 +9,8 @@ os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 import torch
 import matplotlib
-matplotlib.use('Agg')
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import argparse
@@ -30,25 +31,30 @@ from dataset import WMSDataset
 from transforms import TrainTransforms, valTransforms
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
+
 # Dice coefficient
 def dice_coeff(pred, target, smooth=1e-6):
     pred = pred.flatten()
     target = target.flatten()
-    intersection = (pred * target).sum() # 2*|pred ∩ GT| # GT - Ground Truth
-    return (2. * intersection + smooth) / (pred.sum() + target.sum() + smooth) # 2*|pred ∩ GT|
+    intersection = (pred * target).sum()  # 2*|pred ∩ GT| # GT - Ground Truth
+    return (2.0 * intersection + smooth) / (
+        pred.sum() + target.sum() + smooth
+    )  # 2*|pred ∩ GT|
 
 
 # Intersection over Union
 def iou_coeff(pred, target, smooth=1e-6):
     pred = pred.flatten()
     target = target.flatten()
-    intersection = (pred * target).sum() # |pred ∩ GT|
-    union = pred.sum() + target.sum() - intersection # |pred| + |GT| − |pred ∩ GT|
-    return (intersection + smooth) / (union + smooth) # smooth to avoid division by 0
+    intersection = (pred * target).sum()  # |pred ∩ GT|
+    union = pred.sum() + target.sum() - intersection  # |pred| + |GT| − |pred ∩ GT|
+    return (intersection + smooth) / (union + smooth)  # smooth to avoid division by 0
+
 
 # Pixel-wise accuracy
 def pixel_accuracy(pred, target):
     return (pred == target).mean()
+
 
 # Safe Hausdorff distance that handles empty masks
 def safe_hausdorff(pred_mask, gt_mask):
@@ -81,6 +87,7 @@ def safe_hausdorff(pred_mask, gt_mask):
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
+
 
 def load_config(config_path):
     with open(config_path) as f:
@@ -117,22 +124,31 @@ if torch.cuda.is_available():
     torch.cuda.manual_seed_all(args.seed)
 
 # Prepare data
-prepare_script = os.path.join(os.path.dirname(__file__), 'prepareDataset.py')
+prepare_script = os.path.join(os.path.dirname(__file__), "prepareDataset.py")
 subprocess.run([sys.executable, prepare_script], check=True)
 
 # Load data
-baseDataDir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'training', 'temp')
+baseDataDir = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "data", "training", "temp"
+)
+
+
 # Utility to gather paths
 def gather_paths(split):
-    img_dir = os.path.join(baseDataDir, split, 'images')
-    mask_dir = os.path.join(baseDataDir, split, 'masks')
-    images = sorted([os.path.join(img_dir, f) for f in os.listdir(img_dir) if f.endswith('.jpg')])
-    masks  = sorted([os.path.join(mask_dir, f) for f in os.listdir(mask_dir) if f.endswith('.jpg')])
+    img_dir = os.path.join(baseDataDir, split, "images")
+    mask_dir = os.path.join(baseDataDir, split, "masks")
+    images = sorted(
+        [os.path.join(img_dir, f) for f in os.listdir(img_dir) if f.endswith(".jpg")]
+    )
+    masks = sorted(
+        [os.path.join(mask_dir, f) for f in os.listdir(mask_dir) if f.endswith(".jpg")]
+    )
     return images, masks
 
-trainImagePaths, trainMaskPaths = gather_paths('train')
-testImagePaths, testMaskPaths   = gather_paths('test')
-valImagePaths,  valMaskPaths    = gather_paths('val')
+
+trainImagePaths, trainMaskPaths = gather_paths("train")
+testImagePaths, testMaskPaths = gather_paths("test")
+valImagePaths, valMaskPaths = gather_paths("val")
 
 # Use augmented transforms for training, simple transforms for val/test
 trainTransforms = TrainTransforms(
@@ -142,18 +158,20 @@ trainTransforms = TrainTransforms(
     p_rotate=config["augmentation"]["rotation_prob"],
     p_color_jitter=config["augmentation"]["color_jitter_prob"],
 )
-trainDataset = WMSDataset(trainImagePaths, trainMaskPaths, paired_transforms=trainTransforms)
-valDataset   = WMSDataset(valImagePaths,   valMaskPaths,   imageTransforms=valTransforms)
-testDataset  = WMSDataset(testImagePaths,  testMaskPaths,  imageTransforms=valTransforms)
+trainDataset = WMSDataset(
+    trainImagePaths, trainMaskPaths, paired_transforms=trainTransforms
+)
+valDataset = WMSDataset(valImagePaths, valMaskPaths, imageTransforms=valTransforms)
+testDataset = WMSDataset(testImagePaths, testMaskPaths, imageTransforms=valTransforms)
 
 # DataLoaders
 batch_size = config["training"]["batch_size"]
 trainLoader = DataLoader(trainDataset, batch_size=batch_size, shuffle=True)
-valLoader   = DataLoader(valDataset,   batch_size=batch_size, shuffle=False)
-testLoader  = DataLoader(testDataset,  batch_size=batch_size, shuffle=False)
+valLoader = DataLoader(valDataset, batch_size=batch_size, shuffle=False)
+testLoader = DataLoader(testDataset, batch_size=batch_size, shuffle=False)
 
 # Device
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model = WaterMetersUNet(inChannels=3, outChannels=1).to(device)
 
@@ -167,7 +185,8 @@ optimizer = optim.Adam(
     weight_decay=config["training"]["weight_decay"],
 )
 scheduler = ReduceLROnPlateau(
-    optimizer, mode='min',
+    optimizer,
+    mode="min",
     factor=config["training"]["scheduler"]["factor"],
     patience=config["training"]["scheduler"]["patience"],
     min_lr=config["training"]["scheduler"]["min_lr"],
@@ -180,18 +199,18 @@ trainDice, valDice, testDice = [], [], []
 trainIoU, valIoU, testIoU = [], [], []
 epoch_logs = []
 numEpochs = config["training"]["epochs"]
-bestVal = float('inf')
+bestVal = float("inf")
 patienceCtr = 0
 
 # Session tracking variables
-bestSessionVal = float('inf')  # Best validation loss in current session
-bestSessionEpoch = 0           # Epoch with best result in session
-bestSessionMetrics = {}        # Metrics of best model in session
+bestSessionVal = float("inf")  # Best validation loss in current session
+bestSessionEpoch = 0  # Epoch with best result in session
+bestSessionMetrics = {}  # Metrics of best model in session
 
 # Load existing best.pth and validate it to get baseline for comparison
-models_dir = os.path.join(os.path.dirname(__file__), '..', 'models')
-best_path = os.path.join(models_dir, 'best.pth')
-previousBestVal = float('inf')
+models_dir = os.path.join(os.path.dirname(__file__), "..", "models")
+best_path = os.path.join(models_dir, "best.pth")
+previousBestVal = float("inf")
 
 if os.path.exists(best_path):
     print("Found existing best.pth - validating to establish baseline...")
@@ -205,7 +224,7 @@ if os.path.exists(best_path):
             runningLoss += criterion(outputs, masks).item()
     previousBestVal = runningLoss / len(valLoader)
     print(f"Previous best.pth validation loss: {previousBestVal:.4f}")
-    print("="*80)
+    print("=" * 80)
     # Reset model for training
     model = WaterMetersUNet(inChannels=3, outChannels=1).to(device)
     optimizer = optim.Adam(
@@ -214,7 +233,8 @@ if os.path.exists(best_path):
         weight_decay=config["training"]["weight_decay"],
     )
     scheduler = ReduceLROnPlateau(
-        optimizer, mode='min',
+        optimizer,
+        mode="min",
         factor=config["training"]["scheduler"]["factor"],
         patience=config["training"]["scheduler"]["patience"],
         min_lr=config["training"]["scheduler"]["min_lr"],
@@ -226,21 +246,23 @@ if tracking_uri:
     mlflow.set_tracking_uri(tracking_uri)
 mlflow.set_experiment("water-meter-segmentation")
 mlflow.start_run(run_name=get_model_version())
-mlflow.log_params({
-    "seed": args.seed,
-    "epochs": numEpochs,
-    "batch_size": config["training"]["batch_size"],
-    "learning_rate": config["training"]["learning_rate"],
-    "weight_decay": config["training"]["weight_decay"],
-    "early_stopping_patience": config["training"]["early_stopping_patience"],
-    "scheduler_factor": config["training"]["scheduler"]["factor"],
-    "scheduler_patience": config["training"]["scheduler"]["patience"],
-    "hflip": config["augmentation"]["horizontal_flip"],
-    "vflip": config["augmentation"]["vertical_flip"],
-    "rotation_degrees": config["augmentation"]["rotation_degrees"],
-    "rotation_prob": config["augmentation"]["rotation_prob"],
-    "color_jitter_prob": config["augmentation"]["color_jitter_prob"],
-})
+mlflow.log_params(
+    {
+        "seed": args.seed,
+        "epochs": numEpochs,
+        "batch_size": config["training"]["batch_size"],
+        "learning_rate": config["training"]["learning_rate"],
+        "weight_decay": config["training"]["weight_decay"],
+        "early_stopping_patience": config["training"]["early_stopping_patience"],
+        "scheduler_factor": config["training"]["scheduler"]["factor"],
+        "scheduler_patience": config["training"]["scheduler"]["patience"],
+        "hflip": config["augmentation"]["horizontal_flip"],
+        "vflip": config["augmentation"]["vertical_flip"],
+        "rotation_degrees": config["augmentation"]["rotation_degrees"],
+        "rotation_prob": config["augmentation"]["rotation_prob"],
+        "color_jitter_prob": config["augmentation"]["color_jitter_prob"],
+    }
+)
 
 # Training loop
 for epoch in range(1, numEpochs + 1):
@@ -261,17 +283,21 @@ for epoch in range(1, numEpochs + 1):
             preds_np = preds.cpu().numpy()
             masks_np = masks.cpu().numpy()
             batch_acc = pixel_accuracy(preds_np, masks_np)
-            batch_dice = sum([dice_coeff(p, m) for p, m in zip(preds_np, masks_np)]) / len(preds_np)
-            batch_iou = sum([iou_coeff(p, m) for p, m in zip(preds_np, masks_np)]) / len(preds_np)
-        runningAcc  += batch_acc
+            batch_dice = sum(
+                [dice_coeff(p, m) for p, m in zip(preds_np, masks_np)]
+            ) / len(preds_np)
+            batch_iou = sum(
+                [iou_coeff(p, m) for p, m in zip(preds_np, masks_np)]
+            ) / len(preds_np)
+        runningAcc += batch_acc
         runningDice += batch_dice
-        runningIoU  += batch_iou
+        runningIoU += batch_iou
         runningLoss += loss.item()
 
     avgTrainLoss = runningLoss / len(trainLoader)
-    avgTrainAcc  = runningAcc  / len(trainLoader)
+    avgTrainAcc = runningAcc / len(trainLoader)
     avgTrainDice = runningDice / len(trainLoader)
-    avgTrainIoU  = runningIoU  / len(trainLoader)
+    avgTrainIoU = runningIoU / len(trainLoader)
     trainLosses.append(avgTrainLoss)
     trainAccs.append(avgTrainAcc)
     trainDice.append(avgTrainDice)
@@ -290,13 +316,17 @@ for epoch in range(1, numEpochs + 1):
             preds_np = preds.cpu().numpy()
             masks_np = masks.cpu().numpy()
             runningValAcc += pixel_accuracy(preds_np, masks_np)
-            runningValDice += sum([dice_coeff(p, m) for p, m in zip(preds_np, masks_np)]) / len(preds_np)
-            runningValIoU += sum([iou_coeff(p, m) for p, m in zip(preds_np, masks_np)]) / len(preds_np)
+            runningValDice += sum(
+                [dice_coeff(p, m) for p, m in zip(preds_np, masks_np)]
+            ) / len(preds_np)
+            runningValIoU += sum(
+                [iou_coeff(p, m) for p, m in zip(preds_np, masks_np)]
+            ) / len(preds_np)
 
     avgValLoss = runningLoss / len(valLoader)
-    avgValAcc  = runningValAcc / len(valLoader)
+    avgValAcc = runningValAcc / len(valLoader)
     avgValDice = runningValDice / len(valLoader)
-    avgValIoU  = runningValIoU / len(valLoader)
+    avgValIoU = runningValIoU / len(valLoader)
     valLosses.append(avgValLoss)
     valAccs.append(avgValAcc)
     valDice.append(avgValDice)
@@ -305,7 +335,12 @@ for epoch in range(1, numEpochs + 1):
 
     # Testing
     model.eval()
-    runningTestLoss, runningTestAcc, runningTestDice, runningTestIoU = 0.0, 0.0, 0.0, 0.0
+    runningTestLoss, runningTestAcc, runningTestDice, runningTestIoU = (
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    )
     with torch.no_grad():
         for images, masks in testLoader:
             images, masks = images.to(device), masks.to(device)
@@ -316,51 +351,72 @@ for epoch in range(1, numEpochs + 1):
             preds_np = preds.cpu().numpy()
             masks_np = masks.cpu().numpy()
             runningTestAcc += pixel_accuracy(preds_np, masks_np)
-            runningTestDice += sum([dice_coeff(p, m) for p, m in zip(preds_np, masks_np)]) / len(preds_np)
-            runningTestIoU += sum([iou_coeff(p, m) for p, m in zip(preds_np, masks_np)]) / len(preds_np)
+            runningTestDice += sum(
+                [dice_coeff(p, m) for p, m in zip(preds_np, masks_np)]
+            ) / len(preds_np)
+            runningTestIoU += sum(
+                [iou_coeff(p, m) for p, m in zip(preds_np, masks_np)]
+            ) / len(preds_np)
 
     avgTestLoss = runningTestLoss / len(testLoader)
-    avgTestAcc  = runningTestAcc  / len(testLoader)
+    avgTestAcc = runningTestAcc / len(testLoader)
     avgTestDice = runningTestDice / len(testLoader)
-    avgTestIoU  = runningTestIoU  / len(testLoader)
+    avgTestIoU = runningTestIoU / len(testLoader)
     testLosses.append(avgTestLoss)
     testAccs.append(avgTestAcc)
     testDice.append(avgTestDice)
     testIoU.append(avgTestIoU)
 
     # Logging
-    epoch_line = (f"Epoch {epoch}/{numEpochs}"
-                  f" - Train Loss: {avgTrainLoss:.4f}, Acc: {avgTrainAcc:.4f}, Dice: {avgTrainDice:.4f}, IoU: {avgTrainIoU:.4f}"
-                  f" - Val Loss: {avgValLoss:.4f}, Acc: {avgValAcc:.4f}, Dice: {avgValDice:.4f}, IoU: {avgValIoU:.4f}"
-                  f" - Test Loss: {avgTestLoss:.4f}, Acc: {avgTestAcc:.4f}, Dice: {avgTestDice:.4f}, IoU: {avgTestIoU:.4f}")
+    epoch_line = (
+        f"Epoch {epoch}/{numEpochs}"
+        f" - Train Loss: {avgTrainLoss:.4f}, Acc: {avgTrainAcc:.4f}, Dice: {avgTrainDice:.4f}, IoU: {avgTrainIoU:.4f}"
+        f" - Val Loss: {avgValLoss:.4f}, Acc: {avgValAcc:.4f}, Dice: {avgValDice:.4f}, IoU: {avgValIoU:.4f}"
+        f" - Test Loss: {avgTestLoss:.4f}, Acc: {avgTestAcc:.4f}, Dice: {avgTestDice:.4f}, IoU: {avgTestIoU:.4f}"
+    )
     print(epoch_line)
     epoch_logs.append(epoch_line)
 
-    mlflow.log_metrics({
-        "train_loss": avgTrainLoss, "train_dice": avgTrainDice, "train_iou": avgTrainIoU,
-        "val_loss": avgValLoss,     "val_dice": avgValDice,     "val_iou": avgValIoU,
-        "test_loss": avgTestLoss,   "test_dice": avgTestDice,   "test_iou": avgTestIoU,
-    }, step=epoch)
+    mlflow.log_metrics(
+        {
+            "train_loss": avgTrainLoss,
+            "train_dice": avgTrainDice,
+            "train_iou": avgTrainIoU,
+            "val_loss": avgValLoss,
+            "val_dice": avgValDice,
+            "val_iou": avgValIoU,
+            "test_loss": avgTestLoss,
+            "test_dice": avgTestDice,
+            "test_iou": avgTestIoU,
+        },
+        step=epoch,
+    )
 
     # Save best result for current session (after all metrics are calculated)
     if avgValLoss < bestSessionVal:
         bestSessionVal = avgValLoss
         bestSessionEpoch = epoch
         bestSessionMetrics = {
-            'epoch': epoch,
-            'val_loss': avgValLoss,
-            'val_acc': avgValAcc,
-            'val_dice': avgValDice,
-            'val_iou': avgValIoU,
-            'test_loss': avgTestLoss,
-            'test_acc': avgTestAcc,
-            'test_dice': avgTestDice,
-            'test_iou': avgTestIoU
+            "epoch": epoch,
+            "val_loss": avgValLoss,
+            "val_acc": avgValAcc,
+            "val_dice": avgValDice,
+            "val_iou": avgValIoU,
+            "test_loss": avgTestLoss,
+            "test_acc": avgTestAcc,
+            "test_dice": avgTestDice,
+            "test_iou": avgTestIoU,
         }
         patienceCtr = 0
-        torch.save(model.state_dict(),
-                   os.path.join(os.path.dirname(__file__), '..', 'models', 'best-current-session.pth'))
-        print(f"  → Saved best-current-session.pth (epoch {epoch}, val_loss: {avgValLoss:.4f})")
+        torch.save(
+            model.state_dict(),
+            os.path.join(
+                os.path.dirname(__file__), "..", "models", "best-current-session.pth"
+            ),
+        )
+        print(
+            f"  → Saved best-current-session.pth (epoch {epoch}, val_loss: {avgValLoss:.4f})"
+        )
     else:
         patienceCtr += 1
         if patienceCtr >= config["training"]["early_stopping_patience"]:
@@ -368,37 +424,48 @@ for epoch in range(1, numEpochs + 1):
             break
 
     # Saving checkpoint
-    os.makedirs(os.path.join(os.path.dirname(__file__), '..', 'models'), exist_ok=True)
-    torch.save(model.state_dict(), os.path.join(os.path.dirname(__file__), '..', 'models', f'unet_epoch{epoch}.pth'))
+    os.makedirs(os.path.join(os.path.dirname(__file__), "..", "models"), exist_ok=True)
+    torch.save(
+        model.state_dict(),
+        os.path.join(
+            os.path.dirname(__file__), "..", "models", f"unet_epoch{epoch}.pth"
+        ),
+    )
 
 # Training completed - compare with previous best and update if better
-print("\n" + "="*80)
+print("\n" + "=" * 80)
 print("Training completed!")
-print(f"Best model from this session: epoch {bestSessionEpoch}, val_loss: {bestSessionVal:.4f}")
-print("="*80)
+print(
+    f"Best model from this session: epoch {bestSessionEpoch}, val_loss: {bestSessionVal:.4f}"
+)
+print("=" * 80)
 
-best_session_path = os.path.join(models_dir, 'best-current-session.pth')
+best_session_path = os.path.join(models_dir, "best-current-session.pth")
 
 # Compare with previous best.pth
 print(f"\nPrevious best validation loss: {previousBestVal:.4f}")
 print(f"Current session best validation loss: {bestSessionVal:.4f}")
 
-results_dir = os.path.join(os.path.dirname(__file__), '..', 'Results')
+results_dir = os.path.join(os.path.dirname(__file__), "..", "Results")
 os.makedirs(results_dir, exist_ok=True)
 
 if bestSessionVal < previousBestVal:
     import shutil
+
     shutil.copy(best_session_path, best_path)
     print(f"✓ Updated best.pth with model from epoch {bestSessionEpoch}")
     improved = True
 else:
-    print(f"✗ Current session did not improve best.pth (difference: {bestSessionVal - previousBestVal:+.4f})")
+    print(
+        f"✗ Current session did not improve best.pth (difference: {bestSessionVal - previousBestVal:+.4f})"
+    )
     print(f"  best-current-session.pth saved for reference")
     improved = False
 
 # Always write Terminal.log (every session, regardless of improvement)
 from datetime import datetime
-log_path = os.path.join(results_dir, 'Terminal.log')
+
+log_path = os.path.join(results_dir, "Terminal.log")
 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 log_lines = [
@@ -440,7 +507,7 @@ log_lines = [
     "",
 ]
 
-with open(log_path, 'w', encoding='utf-8') as f:
+with open(log_path, "w", encoding="utf-8") as f:
     f.write("\n".join(log_lines))
 
 print(f"  → Terminal.log written")
@@ -450,32 +517,32 @@ mlflow.log_artifact(log_path, artifact_path="logs")
 summary(model, input_size=(3, 512, 512))
 
 metrics = [
-    ('loss',     'Loss',             trainLosses, valLosses, testLosses),
-    ('accuracy', 'Accuracy',         trainAccs,   valAccs,   testAccs),
-    ('dice',     'Dice Coefficient', trainDice,   valDice,   testDice),
-    ('iou',      'IoU',              trainIoU,    valIoU,    testIoU),
+    ("loss", "Loss", trainLosses, valLosses, testLosses),
+    ("accuracy", "Accuracy", trainAccs, valAccs, testAccs),
+    ("dice", "Dice Coefficient", trainDice, valDice, testDice),
+    ("iou", "IoU", trainIoU, valIoU, testIoU),
 ]
 
 for fname, ylabel, train_data, val_data, test_data in metrics:
     plt.figure(figsize=(8, 5))
-    plt.plot(train_data, label='Train', color='tab:blue',   marker='o', markersize=3)
-    plt.plot(val_data,   label='Val',   color='tab:orange', marker='s', markersize=3)
-    plt.plot(test_data,  label='Test',  color='tab:green',  marker='^', markersize=3)
-    plt.xlabel('Epoch')
+    plt.plot(train_data, label="Train", color="tab:blue", marker="o", markersize=3)
+    plt.plot(val_data, label="Val", color="tab:orange", marker="s", markersize=3)
+    plt.plot(test_data, label="Test", color="tab:green", marker="^", markersize=3)
+    plt.xlabel("Epoch")
     plt.ylabel(ylabel)
-    plt.title(f'{ylabel} vs Epoch')
-    plt.legend(loc='best')
+    plt.title(f"{ylabel} vs Epoch")
+    plt.legend(loc="best")
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(os.path.join(results_dir, f'plot_{fname}.png'))
+    plt.savefig(os.path.join(results_dir, f"plot_{fname}.png"))
     print(f"  → Saved plot_{fname}.png")
     plt.show()
 
 # Load best.pth for final evaluation
-print("\n" + "="*80)
+print("\n" + "=" * 80)
 print("Loading best.pth for final evaluation...")
 model.load_state_dict(torch.load(best_path, map_location=device))
-print("="*80)
+print("=" * 80)
 
 # Final metrics on test set
 print("--- Final evaluation on test set ---")
@@ -511,21 +578,21 @@ masks = masks.cpu().squeeze(1).numpy()
 preds = preds.squeeze(1).numpy()
 
 for i in range(images.shape[0]):
-    plt.figure(figsize=(12,4))
-    plt.subplot(1,3,1)
+    plt.figure(figsize=(12, 4))
+    plt.subplot(1, 3, 1)
     plt.imshow(images[i])
-    plt.title('Image')
-    plt.axis('off')
-    plt.subplot(1,3,2)
-    plt.imshow(masks[i], cmap='gray')
-    plt.title('GT Mask')
-    plt.axis('off')
-    plt.subplot(1,3,3)
-    plt.imshow(preds[i], cmap='gray')
-    plt.title('Predicted Mask')
-    plt.axis('off')
+    plt.title("Image")
+    plt.axis("off")
+    plt.subplot(1, 3, 2)
+    plt.imshow(masks[i], cmap="gray")
+    plt.title("GT Mask")
+    plt.axis("off")
+    plt.subplot(1, 3, 3)
+    plt.imshow(preds[i], cmap="gray")
+    plt.title("Predicted Mask")
+    plt.axis("off")
     plt.tight_layout()
-    plt.savefig(os.path.join(results_dir, f'plot_pred_{i}.png'))
+    plt.savefig(os.path.join(results_dir, f"plot_pred_{i}.png"))
     print(f"  → Saved plot_pred_{i}.png")
     plt.show()
 
@@ -537,13 +604,15 @@ metrics_out = {
     "test_iou": float(np.mean(iou_scores)),
     "test_hausdorff": float(np.mean(hausdorff_dists)),
 }
-with open(os.path.join(models_dir, 'metrics.json'), 'w') as f:
+with open(os.path.join(models_dir, "metrics.json"), "w") as f:
     json.dump(metrics_out, f, indent=2)
 print("  → Saved metrics.json")
 
 # Log plots and model to MLflow
 for png in sorted(Path(results_dir).glob("*.png")):
     mlflow.log_artifact(str(png), artifact_path="plots")
-mlflow.pytorch.log_model(model, name="model", registered_model_name="water-meter-segmentation")
+mlflow.pytorch.log_model(
+    model, name="model", registered_model_name="water-meter-segmentation"
+)
 mlflow.end_run()
 print("  → MLflow run finished")

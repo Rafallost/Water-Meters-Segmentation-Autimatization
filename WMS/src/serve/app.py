@@ -24,10 +24,17 @@ import numpy as np
 from PIL import Image
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import Response, JSONResponse
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import (
+    Counter,
+    Histogram,
+    Gauge,
+    generate_latest,
+    CONTENT_TYPE_LATEST,
+)
 
 # Import model and transforms from parent directory
 import sys
+
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from WMS.src.model import WaterMetersUNet
 from WMS.src.transforms import valTransforms
@@ -35,22 +42,14 @@ from WMS.src.transforms import valTransforms
 # =============================================================================
 # Prometheus Metrics
 # =============================================================================
-predict_count = Counter(
-    "wms_predictions_total",
-    "Total number of predictions made"
-)
+predict_count = Counter("wms_predictions_total", "Total number of predictions made")
 predict_latency = Histogram(
-    "wms_predict_latency_seconds",
-    "Prediction latency in seconds"
+    "wms_predict_latency_seconds", "Prediction latency in seconds"
 )
 predict_errors = Counter(
-    "wms_predict_errors_total",
-    "Total number of prediction errors"
+    "wms_predict_errors_total", "Total number of prediction errors"
 )
-model_loaded = Gauge(
-    "wms_model_loaded",
-    "Model loaded status (1=loaded, 0=not loaded)"
-)
+model_loaded = Gauge("wms_model_loaded", "Model loaded status (1=loaded, 0=not loaded)")
 
 # =============================================================================
 # FastAPI App
@@ -58,7 +57,7 @@ model_loaded = Gauge(
 app = FastAPI(
     title="Water Meters Segmentation API",
     description="Segmentation API for water meter detection using U-Net",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 # Global model variable
@@ -135,11 +134,7 @@ def initialize_model():
             model = load_model_from_mlflow(model_version)
         else:
             # Try default paths
-            default_paths = [
-                "best.pth",
-                "WMS/models/best.pth",
-                "/app/best.pth"
-            ]
+            default_paths = ["best.pth", "WMS/models/best.pth", "/app/best.pth"]
             for path in default_paths:
                 if os.path.exists(path):
                     model = load_model_from_path(path)
@@ -212,11 +207,11 @@ def postprocess_mask(output: torch.Tensor) -> np.ndarray:
 
 def mask_to_base64(mask: np.ndarray) -> str:
     """Convert mask array to base64 encoded PNG."""
-    mask_image = Image.fromarray(mask, mode='L')
+    mask_image = Image.fromarray(mask, mode="L")
     buffer = io.BytesIO()
-    mask_image.save(buffer, format='PNG')
+    mask_image.save(buffer, format="PNG")
     buffer.seek(0)
-    mask_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+    mask_base64 = base64.b64encode(buffer.read()).decode("utf-8")
     return mask_base64
 
 
@@ -238,8 +233,8 @@ async def root():
         "endpoints": {
             "health": "/health",
             "predict": "/predict",
-            "metrics": "/metrics"
-        }
+            "metrics": "/metrics",
+        },
     }
 
 
@@ -252,7 +247,7 @@ async def health_check():
     return {
         "status": "healthy",
         "model_loaded": model is not None,
-        "device": str(device)
+        "device": str(device),
     }
 
 
@@ -279,8 +274,8 @@ async def predict(image: UploadFile = File(...)):
         image_pil = Image.open(io.BytesIO(image_bytes))
 
         # Convert to RGB if needed
-        if image_pil.mode != 'RGB':
-            image_pil = image_pil.convert('RGB')
+        if image_pil.mode != "RGB":
+            image_pil = image_pil.convert("RGB")
 
         # Preprocess
         image_tensor = preprocess_image(image_pil)
@@ -302,16 +297,18 @@ async def predict(image: UploadFile = File(...)):
         predict_latency.observe(latency)
 
         # Return response
-        return JSONResponse({
-            "status": "success",
-            "mask_base64": mask_base64,
-            "metadata": {
-                "input_size": list(image_pil.size),
-                "output_size": [512, 512],
-                "latency_seconds": round(latency, 3),
-                "device": str(device)
+        return JSONResponse(
+            {
+                "status": "success",
+                "mask_base64": mask_base64,
+                "metadata": {
+                    "input_size": list(image_pil.size),
+                    "output_size": [512, 512],
+                    "latency_seconds": round(latency, 3),
+                    "device": str(device),
+                },
             }
-        })
+        )
 
     except Exception as e:
         predict_errors.inc()
@@ -322,10 +319,7 @@ async def predict(image: UploadFile = File(...)):
 @app.get("/metrics")
 async def metrics():
     """Prometheus metrics endpoint."""
-    return Response(
-        content=generate_latest(),
-        media_type=CONTENT_TYPE_LATEST
-    )
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 # =============================================================================
@@ -333,4 +327,5 @@ async def metrics():
 # =============================================================================
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

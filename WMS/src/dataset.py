@@ -1,10 +1,15 @@
-from torch.utils.data import Dataset # All PyTorch datasets must inherit from this base dataset class
+from torch.utils.data import (
+    Dataset,
+)  # All PyTorch datasets must inherit from this base dataset class
 import cv2
 import torch
 import numpy as np
 
+
 class WMSDataset(Dataset):
-    def __init__(self, imagePaths, maskPaths, imageTransforms=None, paired_transforms=None):
+    def __init__(
+        self, imagePaths, maskPaths, imageTransforms=None, paired_transforms=None
+    ):
         """
         Args:
             imagePaths: List of image paths
@@ -21,8 +26,8 @@ class WMSDataset(Dataset):
         return len(self.imagePaths)
 
     def __getitem__(self, i):
-        image_path = self.imagePaths[i] #Grab the image path form the current index
-        image = cv2.imread(image_path) # Load image
+        image_path = self.imagePaths[i]  # Grab the image path form the current index
+        image = cv2.imread(image_path)  # Load image
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         mask = cv2.imread(self.maskPaths[i], cv2.IMREAD_GRAYSCALE)  # uint8
@@ -44,5 +49,3 @@ class WMSDataset(Dataset):
         mask = torch.from_numpy(mask.astype(np.float32))[None, ...]  # 1xHxW
 
         return image, mask
-
-
