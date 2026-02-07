@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install flake8 black mypy pytest
+          pip install flake8 black mypy
 
       - name: Lint
         run: flake8 WMS/src/ --max-line-length 120
@@ -29,5 +29,14 @@ jobs:
       - name: Format check
         run: black WMS/src/ --check
 
-      - name: Tests
-        run: pytest WMS/tests/ || echo "Tests directory not yet implemented"
+      - name: Run unit tests
+        run: |
+          pytest WMS/tests/ -v --cov=WMS/src --cov-report=term-missing
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/
+          retention-days: 7

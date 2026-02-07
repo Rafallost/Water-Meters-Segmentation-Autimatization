@@ -15,5 +15,7 @@ uvicorn
 python-multipart
 prometheus-client
 pytest
+pytest-cov
+httpx  # For FastAPI TestClient
 requests
 boto3
