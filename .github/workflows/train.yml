@@ -390,6 +390,22 @@ jobs:
           print(f"Model version {model_version.version} from attempt {best_result['attempt']} promoted to Production!")
           EOF
 
+      - name: Log Production model metrics
+        if: steps.aggregate.outputs.any_improved == 'true'
+        env:
+          MLFLOW_TRACKING_URI: ${{ needs.start-infra.outputs.mlflow_url }}
+        run: |
+          python3 WMS/scripts/log_production_metrics.py --mlflow-uri "$MLFLOW_TRACKING_URI"
+
+      - name: Commit Production metrics to repo
+        if: steps.aggregate.outputs.any_improved == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add WMS/models/production_current.json WMS/models/production_history.jsonl
+          git commit -m "chore: update Production model metrics (v${{ steps.aggregate.outputs.best_attempt }})" || echo "No changes to commit"
+          git push origin HEAD:${{ github.head_ref || github.ref_name }}
+
       - name: Comment on PR with all results
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7

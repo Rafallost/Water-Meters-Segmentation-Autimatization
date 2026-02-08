@@ -1,0 +1,4 @@
+# Production Model History
+# Each line is a JSON object representing a Production model version
+# Format: {"version": int, "run_id": str, "timestamp": str, "metrics": {...}, "params": {...}}
+# This file is automatically updated by the training workflow

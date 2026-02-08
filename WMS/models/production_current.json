@@ -1,0 +1,10 @@
+{
+  "version": null,
+  "run_id": null,
+  "stage": "Production",
+  "timestamp": null,
+  "created_at": null,
+  "metrics": {},
+  "params": {},
+  "note": "This file will be automatically updated when a new model is promoted to Production"
+}

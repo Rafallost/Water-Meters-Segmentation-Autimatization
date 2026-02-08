@@ -181,6 +181,8 @@ WMS/data/training/temp/
 # Models are downloaded from MLflow Production stage on-demand
 WMS/models/*
 !WMS/models/.gitkeep
+!WMS/models/production_current.json
+!WMS/models/production_history.jsonl
 
 # Prediction outputs
 WMS/data/predictions/predicted_masks/

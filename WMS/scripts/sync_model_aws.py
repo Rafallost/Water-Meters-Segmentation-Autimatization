@@ -85,9 +85,10 @@ def check_aws_credentials():
         print("  2. Click 'AWS Details' → Show AWS CLI credentials")
         print("  3. Update credentials in ~/.aws/credentials")
         print("  OR set environment variables:")
-        print("     set AWS_ACCESS_KEY_ID=...")
-        print("     set AWS_SECRET_ACCESS_KEY=...")
-        print("     set AWS_SESSION_TOKEN=...")
+        print("     Windows: $env:AWS_ACCESS_KEY_ID=\"...\"")
+        print("     Linux:   export AWS_ACCESS_KEY_ID=\"...\"")
+        print("\n  OR use helper script:")
+        print("     python WMS/scripts/fetch_aws_credentials.py --check")
         return False
     except json.JSONDecodeError:
         print_error("Failed to parse AWS credentials!")
@@ -339,6 +340,17 @@ def main():
             print_warning("Stopping EC2 anyway...")
             stop_ec2(instance_id)
         sys.exit(1)
+
+    # Log Production model metrics to tracked file
+    print_step("Logging Production model metrics...")
+    try:
+        log_script = Path(__file__).parent / "log_production_metrics.py"
+        subprocess.run(
+            [sys.executable, str(log_script), "--mlflow-uri", mlflow_url],
+            check=False  # Don't fail if logging fails
+        )
+    except Exception as e:
+        print_warning(f"Could not log metrics: {e}")
 
     # Stop EC2 (unless --no-stop)
     if not args.no_stop:
