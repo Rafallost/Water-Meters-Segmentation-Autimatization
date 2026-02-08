@@ -4,6 +4,7 @@ from model import WaterMetersUNet
 from transforms import valTransforms
 import cv2
 import os
+import sys
 
 # Preparing paths for custom predictions
 baseDataDir = os.path.join(os.path.dirname(__file__), "..", "data")
@@ -16,9 +17,30 @@ os.makedirs(save_dir, exist_ok=True)
 # Loading model and weight
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = WaterMetersUNet(inChannels=3, outChannels=1).to(device)
-modelPath = os.path.join(
-    os.path.dirname(__file__), "..", "models", "best.pth"
-)  # CHOOSE CHECKPOINT
+
+# Try production.pth (downloaded from MLflow), fallback to best.pth
+model_candidates = [
+    os.path.join(os.path.dirname(__file__), '..', 'models', 'production.pth'),
+    os.path.join(os.path.dirname(__file__), '..', 'models', 'best.pth'),
+]
+
+modelPath = None
+for path in model_candidates:
+    if os.path.exists(path):
+        modelPath = path
+        print(f"Using model: {path}")
+        break
+
+if modelPath is None:
+    print("❌ No model found!")
+    print("")
+    print("Download the Production model from MLflow:")
+    print("  python WMS/src/download_model.py --mlflow-uri http://<EC2_IP>:5000")
+    print("")
+    print("Or train a new model:")
+    print("  python WMS/src/train.py")
+    sys.exit(1)
+
 checkpoint = torch.load(modelPath, map_location=device)
 model.load_state_dict(checkpoint)
 model.eval()

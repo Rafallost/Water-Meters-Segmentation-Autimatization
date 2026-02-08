@@ -143,6 +143,60 @@ gh pr close <PR_NUMBER>
 
 ---
 
+## 🤖 Using the Production Model Locally
+
+The latest trained model lives in **MLflow Production stage**, not in Git.
+
+### Download Production Model
+
+```bash
+# 1. Start EC2 (if not running)
+gh workflow run ec2-control.yaml -f action=start
+
+# 2. Get EC2 IP
+# Check GitHub Actions output or AWS Console
+
+# 3. Download Production model
+python WMS/src/download_model.py --mlflow-uri http://<EC2_IP>:5000
+
+# Output:
+# ✅ Downloaded Production model to: WMS/models/production.pth
+```
+
+### Run Predictions
+
+```bash
+# After downloading, predictions work offline
+python WMS/src/predicts.py
+
+# Models are cached locally (gitignored)
+# Re-download when new Production model available:
+python WMS/src/download_model.py --force
+```
+
+### Alternative: Load Directly from MLflow
+
+```python
+import mlflow
+import mlflow.pytorch
+
+mlflow.set_tracking_uri("http://<EC2_IP>:5000")
+model = mlflow.pytorch.load_model("models:/water-meter-segmentation/production")
+```
+
+### Browse Models in MLflow UI
+
+```
+Open in browser: http://<EC2_IP>:5000
+
+1. Click "Models"
+2. Click "water-meter-segmentation"
+3. See all versions with metrics
+4. "Production" stage = latest deployed model
+```
+
+---
+
 ## 🔍 Check MLflow Experiment Tracking
 
 View all training runs, metrics, and models:

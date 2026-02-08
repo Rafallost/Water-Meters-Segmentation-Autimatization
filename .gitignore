@@ -178,8 +178,9 @@ WMS/data/training/temp/
 # WMS/data/training/masks/
 
 # Local model checkpoints — MLflow is source of truth, not Git
+# Models are downloaded from MLflow Production stage on-demand
 WMS/models/*
-!WMS/models/best.pth
+!WMS/models/.gitkeep
 
 # Prediction outputs
 WMS/data/predictions/predicted_masks/

@@ -1,0 +1,2 @@
+# This directory stores downloaded models from MLflow
+# Models are gitignored - download with: python WMS/src/download_model.py

@@ -32,7 +32,17 @@ git push origin main  # Pre-push hook redirects to data/TIMESTAMP
 # 3. Wait ~10 minutes for training
 # 4. Check PR for training results
 # 5. Merge if model improved!
+
+# 6. Download the new Production model
+python WMS/src/download_model.py --mlflow-uri http://<EC2_IP>:5000
+
+# 7. Use it for predictions
+python WMS/src/predicts.py
 ```
+
+**Models are stored in MLflow, not Git.** Download the latest Production model as shown above.
+
+👉 **[Full model usage guide](docs/USAGE.md#-using-the-production-model-locally)**
 
 **How it works:** Pre-push hook detects training data changes and automatically:
 - Creates branch `data/YYYYMMDD-HHMMSS`
