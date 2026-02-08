@@ -188,13 +188,16 @@ ExecStart=/usr/local/bin/mlflow server \
   --backend-store-uri sqlite:////opt/mlflow/mlflow.db \
   --default-artifact-root s3://${mlflow_bucket}/ \
   --host 0.0.0.0 \
-  --gunicorn-opts "--timeout 300 --workers 2 --keep-alive 120"
+  --workers 2 \
+  --gunicorn-opts "--timeout 300 --keep-alive 120"
 ```
 
 **Configuration explained:**
+- `--workers 2`: MLflow argument for worker count (NOT in gunicorn-opts - MLflow adds `-w` after gunicorn-opts)
 - `--timeout 300`: 5 minutes worker timeout (matches MLFLOW_HTTP_REQUEST_TIMEOUT in workflow)
-- `--workers 2`: Explicit worker count (prevents spawning too many)
 - `--keep-alive 120`: 2 minute keep-alive for slow connections (helps with internet latency)
+
+**IMPORTANT:** `--workers` must be a direct MLflow argument, NOT inside `--gunicorn-opts`. If passed via gunicorn-opts, MLflow's default `-w 4` overrides it.
 
 **Deployment:**
 ```bash
