@@ -1,0 +1,43 @@
+name: Manual EC2 Control
+
+# Manual workflow to start/stop EC2 and get IP address
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - start
+          - stop
+        default: 'start'
+
+jobs:
+  control:
+    uses: ./.github/workflows/ec2-control.yaml
+    with:
+      action: ${{ inputs.action }}
+    secrets: inherit
+
+  output-info:
+    needs: control
+    runs-on: ubuntu-latest
+    if: inputs.action == 'start'
+    steps:
+      - name: Display Connection Info
+        run: |
+          echo "## 🚀 EC2 Started Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Instance ID:** ${{ needs.control.outputs.instance_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Public IP:** ${{ needs.control.outputs.public_ip }}" >> $GITHUB_STEP_SUMMARY
+          echo "**MLflow URL:** ${{ needs.control.outputs.mlflow_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📥 Download Production Model:" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "python WMS/src/download_model.py --mlflow-uri ${{ needs.control.outputs.mlflow_url }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Quick Links:" >> $GITHUB_STEP_SUMMARY
+          echo "- MLflow UI: ${{ needs.control.outputs.mlflow_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- SSH: \`ssh -i ~/.ssh/labsuser.pem ec2-user@${{ needs.control.outputs.public_ip }}\`" >> $GITHUB_STEP_SUMMARY

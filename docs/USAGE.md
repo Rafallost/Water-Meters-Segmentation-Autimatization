@@ -147,20 +147,45 @@ gh pr close <PR_NUMBER>
 
 The latest trained model lives in **MLflow Production stage**, not in Git.
 
+**⚠️ IMPORTANT:** Models are NOT stored in Git repository. After cloning this repo, you MUST download the Production model manually (one-time setup). The model is then cached locally for offline use.
+
+**When to download:**
+- ✅ **Required:** After first `git clone` (no model in repo)
+- ✅ **Optional:** After new model is trained (to get latest version)
+- ❌ **NOT needed:** After `git pull` or `git push` (model cached locally)
+
 ### Download Production Model
 
+**🚀 Automatic Method (Recommended):**
+
 ```bash
-# 1. Start EC2 (if not running)
-gh workflow run ec2-control.yaml -f action=start
+# One command - does everything automatically!
+python WMS/scripts/sync_model.py
 
-# 2. Get EC2 IP
-# Check GitHub Actions output or AWS Console
+# What it does:
+# 1. Starts EC2 via GitHub Actions
+# 2. Waits for MLflow to be ready
+# 3. Downloads Production model
+# 4. Asks if you want to stop EC2
+```
 
-# 3. Download Production model
+**Windows users:** Just double-click `sync_model.bat` in project root!
+
+**📋 Manual Method (Alternative):**
+
+```bash
+# 1. Start EC2
+gh workflow run ec2-manual-control.yaml -f action=start
+
+# 2. Wait ~3 minutes, then check workflow output for IP:
+gh run list --workflow=ec2-manual-control.yaml --limit=1
+gh run view <RUN_ID>  # Look for "Public IP" in summary
+
+# 3. Download model
 python WMS/src/download_model.py --mlflow-uri http://<EC2_IP>:5000
 
-# Output:
-# ✅ Downloaded Production model to: WMS/models/production.pth
+# 4. Stop EC2 (optional)
+gh workflow run ec2-manual-control.yaml -f action=stop
 ```
 
 ### Run Predictions
@@ -427,6 +452,119 @@ aws ec2 describe-instances \
 # If "running", stop it:
 aws ec2 stop-instances --instance-ids <instance-id>
 ```
+
+---
+
+## ❓ FAQ: Model Management
+
+### Q: Where is the model stored?
+
+**A:** Models are stored in **MLflow**, NOT in Git.
+
+- **Source of truth:** MLflow Production stage (on EC2)
+- **Local cache:** `WMS/models/production.pth` (gitignored)
+- **NOT in Git:** Models are binary files (7+ MB), excluded from version control
+
+### Q: Do I need to download the model after every `git pull`?
+
+**A:** NO! Model is cached locally and gitignored.
+
+- ❌ NOT needed after `git pull` (code changes don't affect model)
+- ❌ NOT needed after `git push` (model not in Git)
+- ✅ ONLY needed after first `git clone`
+- ✅ ONLY needed when you want the latest trained model
+
+### Q: How do I know if my local model is outdated?
+
+**A:** Check MLflow UI or run sync script with `--force`:
+
+```bash
+# Option 1: Check MLflow UI
+# Open http://<EC2_IP>:5000 → Models → water-meter-segmentation
+# Compare Production version timestamp with your local file timestamp
+
+# Option 2: Just re-download (safe, overwrites local cache)
+python WMS/scripts/sync_model.py --force
+```
+
+### Q: What happens if I try to run predictions without a model?
+
+**A:** You'll get a helpful error message:
+
+```
+❌ No model found!
+
+Download the Production model from MLflow:
+  python WMS/src/download_model.py --mlflow-uri http://<EC2_IP>:5000
+
+Or train a new model:
+  python WMS/src/train.py
+```
+
+Just run `sync_model.py` to fix it!
+
+### Q: Can I commit my downloaded model to Git?
+
+**A:** NO, and it's blocked by `.gitignore`.
+
+- `.gitignore` excludes `WMS/models/*.pth`
+- Git will refuse to track model files
+- This is intentional - models belong in MLflow, not Git
+
+### Q: Why not store models in Git like normal files?
+
+**A:** Because of MLOps best practices:
+
+| Problem with Git | Solution with MLflow |
+|------------------|----------------------|
+| Large files (7+ MB) | Only metadata stored |
+| Slow clone/pull | Fast Git operations |
+| Binary merge conflicts | No conflicts, versions tracked |
+| Git bloat (history grows) | Clean Git history |
+| No model metadata | Metrics, params, lineage |
+
+This is **industry standard** for ML projects. See: [MLflow Model Registry](https://mlflow.org/docs/latest/model-registry.html)
+
+### Q: Does `sync_model.py` cost money?
+
+**A:** Yes, but very little (~$0.002 per run):
+
+- EC2 t3.large: ~$0.08/hour
+- Sync takes ~5 minutes (including startup)
+- Cost per sync: ~$0.007
+- Script automatically stops EC2 after download
+
+**Cost optimization:**
+- Use `--keep-running` if doing multiple operations
+- Model is cached locally (work offline after download)
+- Only re-download when new model is trained
+
+### Q: What if EC2 is already running?
+
+**A:** `sync_model.py` detects this and skips the start step:
+
+```bash
+# If EC2 is already running (from previous operation):
+python WMS/scripts/sync_model.py --mlflow-url http://<EC2_IP>:5000
+
+# This skips EC2 start/stop, just downloads model
+```
+
+### Q: Can I automate model download after `git clone`?
+
+**A:** Technically yes (post-checkout Git hook), but **not recommended**:
+
+- ❌ Hook triggers on EVERY branch switch (unnecessary)
+- ❌ May start EC2 unexpectedly (costs)
+- ❌ User may not have GitHub CLI installed
+- ✅ Better: Explicit manual step (clear, predictable)
+
+**Current approach:**
+1. Clone repo → Try to run predictions → Get error
+2. Error message tells you exactly what to do
+3. One command fixes it: `sync_model.py`
+
+This is better UX than silent automatic downloads that may fail.
 
 ---
 

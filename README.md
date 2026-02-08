@@ -4,6 +4,8 @@
 
 **Automated ML training and deployment pipeline for water meter segmentation using U-Net**
 
+> **👉 Just cloned this repo? Start here:** [QUICKSTART.md](QUICKSTART.md) - Download the model first!
+
 This project demonstrates DevOps best practices applied to machine learning, featuring:
 - ✅ Automated data validation and versioning
 - ✅ Ephemeral infrastructure (70% cost savings)
@@ -12,6 +14,36 @@ This project demonstrates DevOps best practices applied to machine learning, fea
 - ✅ Infrastructure as Code (Terraform)
 
 **Bachelor's Thesis Project:** "Application of DevOps Techniques in Implementing Automatic CI/CD Process for Training and Versioning AI Models"
+
+---
+
+## ⚠️ Important: First Time Setup
+
+**Models are NOT stored in Git!** After cloning this repository, you must download the Production model from MLflow:
+
+```bash
+# One-time setup after git clone:
+python WMS/scripts/sync_model.py
+# Windows: just double-click sync_model.bat
+
+# This will:
+# 1. Start EC2 instance (via GitHub Actions)
+# 2. Download Production model from MLflow
+# 3. Save to WMS/models/production.pth (gitignored, local cache)
+# 4. Stop EC2 instance
+
+# Now you can run predictions offline!
+python WMS/src/predicts.py
+```
+
+**Why not in Git?**
+- ✅ Keeps repository lightweight (models are 7+ MB, can grow to GB)
+- ✅ Fast git clone/pull operations (no large binary files)
+- ✅ MLflow is single source of truth for model versions
+- ✅ Industry-standard MLOps practice (model registry pattern)
+- ✅ No Git merge conflicts with binary files
+
+**Note:** Model is cached locally after download. You only need to re-download when a new model is trained.
 
 ---
 
@@ -34,13 +66,18 @@ git push origin main  # Pre-push hook redirects to data/TIMESTAMP
 # 5. Merge if model improved!
 
 # 6. Download the new Production model
-python WMS/src/download_model.py --mlflow-uri http://<EC2_IP>:5000
+python WMS/scripts/sync_model.py --force  # Re-download latest version
+# Windows: double-click sync_model.bat
 
 # 7. Use it for predictions
 python WMS/src/predicts.py
 ```
 
-**Models are stored in MLflow, not Git.** Download the latest Production model as shown above.
+**When to re-download model:**
+- ✅ After first `git clone` (required - see First Time Setup above)
+- ✅ After merging PR with improved model (optional - to get latest version)
+- ❌ NOT needed after every `git pull/push` (model cached locally)
+- ❌ NOT stored in Git (downloaded from MLflow on-demand)
 
 👉 **[Full model usage guide](docs/USAGE.md#-using-the-production-model-locally)**
 
