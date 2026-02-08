@@ -26,13 +26,13 @@ def download_production_model(
 
     # Check if already cached
     if os.path.exists(output_path) and not force:
-        print(f"✅ Production model already cached: {output_path}")
-        print(f"   To re-download, use --force flag")
+        print(f"[OK] Production model already cached: {output_path}")
+        print(f"     To re-download, use --force flag")
         return output_path
 
-    print(f"📥 Downloading Production model from MLflow...")
-    print(f"   MLflow URI: {mlflow_uri}")
-    print(f"   Model: {model_name}/{version}")
+    print(f"[*] Downloading Production model from MLflow...")
+    print(f"    MLflow URI: {mlflow_uri}")
+    print(f"    Model: {model_name}/{version}")
 
     try:
         # Connect to MLflow
@@ -49,12 +49,12 @@ def download_production_model(
         # Save state dict
         torch.save(model.state_dict(), output_path)
 
-        print(f"✅ Downloaded Production model to: {output_path}")
-        print(f"   You can now use it offline for predictions!")
+        print(f"[OK] Downloaded Production model to: {output_path}")
+        print(f"     You can now use it offline for predictions!")
         return output_path
 
     except Exception as e:
-        print(f"❌ Failed to download model from MLflow: {e}")
+        print(f"[ERROR] Failed to download model from MLflow: {e}")
         print(f"\nTroubleshooting:")
         print(f"  1. Is EC2 running? Start with: gh workflow run ec2-control.yaml -f action=start")
         print(f"  2. Is MLflow accessible? Check: curl {mlflow_uri}/health")
