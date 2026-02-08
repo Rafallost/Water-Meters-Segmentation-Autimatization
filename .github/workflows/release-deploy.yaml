@@ -3,6 +3,13 @@ name: Release & Deploy
 on:
   push:
     branches: [main]
+    paths:
+      - 'WMS/src/serve/**'      # Kod aplikacji serwisowej
+      - 'docker/**'              # Dockerfile changes
+      - 'devops/helm/**'         # Helm chart changes
+      - 'infrastructure/helm-values.yaml'  # Deployment config
+      - 'requirements.txt'       # Python dependencies
+  workflow_dispatch:  # Manual trigger
 
 jobs:
   build-and-deploy:
