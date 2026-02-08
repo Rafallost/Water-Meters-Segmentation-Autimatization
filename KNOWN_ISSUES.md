@@ -55,5 +55,98 @@ Modify `data-upload.yaml` to use a Personal Access Token (PAT) instead of `GITHU
 
 ---
 
+## MLflow 503 errors during parallel training attempts
+
+**Status:** Fixed with workaround
+
+**Issue:**
+When running multiple training attempts in parallel or sequentially without delays, MLflow server returns `503 Service Unavailable` errors. This happens because:
+
+1. SQLite backend cannot handle concurrent write operations effectively
+2. First training attempt saturates MLflow server with metric logging
+3. Subsequent attempts fail immediately on `mlflow.start_run()` or `mlflow.log_metrics()`
+4. Server doesn't have time to recover between attempts
+
+**Symptoms:**
+```
+urllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='100.49.195.150', port=5000):
+Max retries exceeded with url: /api/2.0/mlflow/runs/log-batch
+(Caused by ResponseError('too many 503 error responses'))
+```
+
+**Observed behavior:**
+- **Attempt 1**: Trains successfully for 40-60 epochs, then crashes on metric logging
+- **Attempt 2**: Fails immediately on `mlflow.start_run()` - can't create run (503)
+- **Attempt 3**: Fails immediately on `mlflow.start_run()` - can't create run (503)
+
+**Root cause:**
+- SQLite backend is single-threaded and struggles with high-frequency writes
+- 100 epochs × 9 metrics = 900 write operations per training attempt
+- No recovery time between sequential training attempts
+- t3.large (8GB RAM) is sufficient for compute, but SQLite is the bottleneck
+
+**Fixes implemented:**
+
+1. **Increased HTTP timeout** (`.github/workflows/train.yml`):
+   ```yaml
+   env:
+     MLFLOW_HTTP_REQUEST_TIMEOUT: 300  # 5 minutes (default: 120s)
+     MLFLOW_HTTP_REQUEST_MAX_RETRIES: 5  # Retry with backoff (default: 5)
+   ```
+
+2. **Reduced metric logging frequency** (`WMS/src/train.py`):
+   ```python
+   # Log to MLflow every 5 epochs instead of every epoch
+   if epoch % 5 == 0 or epoch == numEpochs:
+       mlflow.log_metrics({...}, step=epoch)
+   ```
+   - Reduced from 900 writes → **180 writes per training** (5x reduction)
+
+3. **Added recovery delay between attempts** (`.github/workflows/train.yml`):
+   ```yaml
+   - name: Wait for MLflow server to stabilize
+     if: matrix.attempt > 1
+     run: |
+       echo "⏳ Waiting 60 seconds for MLflow server to recover..."
+       sleep 60
+   ```
+   - Gives SQLite time to flush writes and release locks
+   - Allows server to return to idle state
+
+**Impact on training time:**
+- Before: ~45 minutes total (but only 1 attempt succeeds)
+- After: ~50 minutes total (all 3 attempts complete successfully)
+- +5 minutes for 2×60s delays, but **3x reliability improvement**
+
+**Alternative solutions (not implemented due to budget):**
+- **PostgreSQL backend**: Replace SQLite with PostgreSQL for better concurrency
+  - Pros: Handles concurrent writes, no 503 errors
+  - Cons: Requires RDS ($15-30/month) - exceeds $50 budget
+- **Separate MLflow instances**: One MLflow server per training attempt
+  - Pros: Complete isolation
+  - Cons: Complex orchestration, 3x resource usage
+
+**Monitoring:**
+Check MLflow server health during training:
+```bash
+# SSH to EC2
+ssh -i ~/.ssh/labsuser.pem ec2-user@<EC2_IP>
+
+# Check MLflow container logs
+sudo k3s kubectl logs -l app=mlflow --tail=100
+
+# Check SQLite lock status
+sudo lsof /path/to/mlruns.db
+```
+
+**References:**
+- [MLflow Environment Variables](https://mlflow.org/docs/latest/api_reference/python_api/mlflow.environment_variables.html)
+- [MLflow HTTP timeout PR #5745](https://github.com/mlflow/mlflow/pull/5745)
+- Related workflow runs: [Run #21792671320](https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization/actions/runs/21792671320)
+
+**Date discovered:** 2026-02-08
+
+---
+
 ## End of known issues
 

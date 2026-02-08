@@ -128,6 +128,8 @@ jobs:
       - name: Train model (Attempt ${{ matrix.attempt }})
         env:
           MLFLOW_TRACKING_URI: ${{ needs.start-infra.outputs.mlflow_url }}
+          MLFLOW_HTTP_REQUEST_TIMEOUT: 300  # 5 minutes timeout
+          MLFLOW_HTTP_REQUEST_MAX_RETRIES: 5  # Retry 5 times on failure
           PYTHONPATH: ${{ github.workspace }}
         run: |
           echo "=== Training Attempt ${{ matrix.attempt }}/3 ==="
@@ -142,6 +144,8 @@ jobs:
         id: results
         env:
           MLFLOW_TRACKING_URI: ${{ needs.start-infra.outputs.mlflow_url }}
+          MLFLOW_HTTP_REQUEST_TIMEOUT: 300  # 5 minutes timeout
+          MLFLOW_HTTP_REQUEST_MAX_RETRIES: 5  # Retry 5 times on failure
         run: |
           # Extract metrics from latest MLflow run
           python3 << 'EOF'
@@ -353,6 +357,8 @@ jobs:
         if: steps.aggregate.outputs.any_improved == 'true'
         env:
           MLFLOW_TRACKING_URI: ${{ needs.start-infra.outputs.mlflow_url }}
+          MLFLOW_HTTP_REQUEST_TIMEOUT: 300  # 5 minutes timeout
+          MLFLOW_HTTP_REQUEST_MAX_RETRIES: 5  # Retry 5 times on failure
         run: |
           python3 << 'EOF'
           import mlflow
@@ -394,6 +400,8 @@ jobs:
         if: steps.aggregate.outputs.any_improved == 'true'
         env:
           MLFLOW_TRACKING_URI: ${{ needs.start-infra.outputs.mlflow_url }}
+          MLFLOW_HTTP_REQUEST_TIMEOUT: 300  # 5 minutes timeout
+          MLFLOW_HTTP_REQUEST_MAX_RETRIES: 5  # Retry 5 times on failure
         run: |
           python3 WMS/scripts/log_production_metrics.py --mlflow-uri "$MLFLOW_TRACKING_URI"
 

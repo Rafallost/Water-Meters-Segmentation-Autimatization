@@ -385,20 +385,22 @@ for epoch in range(1, numEpochs + 1):
     print(epoch_line)
     epoch_logs.append(epoch_line)
 
-    mlflow.log_metrics(
-        {
-            "train_loss": avgTrainLoss,
-            "train_dice": avgTrainDice,
-            "train_iou": avgTrainIoU,
-            "val_loss": avgValLoss,
-            "val_dice": avgValDice,
-            "val_iou": avgValIoU,
-            "test_loss": avgTestLoss,
-            "test_dice": avgTestDice,
-            "test_iou": avgTestIoU,
-        },
-        step=epoch,
-    )
+    # Log to MLflow every 5 epochs or on last epoch to reduce server load
+    if epoch % 5 == 0 or epoch == numEpochs:
+        mlflow.log_metrics(
+            {
+                "train_loss": avgTrainLoss,
+                "train_dice": avgTrainDice,
+                "train_iou": avgTrainIoU,
+                "val_loss": avgValLoss,
+                "val_dice": avgValDice,
+                "val_iou": avgValIoU,
+                "test_loss": avgTestLoss,
+                "test_dice": avgTestDice,
+                "test_iou": avgTestIoU,
+            },
+            step=epoch,
+        )
 
     # Save best result for current session (after all metrics are calculated)
     if avgValLoss < bestSessionVal:
@@ -519,7 +521,17 @@ with open(log_path, "w", encoding="utf-8") as f:
     f.write("\n".join(log_lines))
 
 print(f"  → Terminal.log written")
-mlflow.log_artifact(log_path, artifact_path="logs")
+
+# Try to upload log to MLflow (gracefully handle S3 permission errors)
+try:
+    mlflow.log_artifact(log_path, artifact_path="logs")
+    print(f"  → Terminal.log uploaded to MLflow")
+except Exception as e:
+    print(f"  ⚠️  Warning: Could not upload Terminal.log to MLflow: {e}")
+    print(
+        f"  → Training succeeded, but artifact upload failed (AWS Academy restriction)"
+    )
+    # Continue - training completed successfully, log is saved locally
 
 # Summary and plots
 summary(model, input_size=(3, 512, 512))
