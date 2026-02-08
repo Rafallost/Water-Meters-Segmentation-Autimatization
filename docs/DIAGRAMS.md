@@ -117,8 +117,8 @@ graph LR
         J --> S[EC2 Stop]
     end
 
-    style M fill:#90EE90
-    style R fill:#FFB6C1
+    style M fill:#d4edda,stroke:#2e7d32,color:#000
+    style R fill:#f8d7da,stroke:#842029,color:#000
 ```
 
 ---
@@ -155,8 +155,8 @@ graph TD
         N -->|No| R[Use cached model]
     end
 
-    style F fill:#90EE90
-    style L fill:#90EE90
+    style F fill:#d4edda,stroke:#2e7d32,color:#000
+    style L fill:#d4edda,stroke:#2e7d32,color:#000
 ```
 
 ---
@@ -232,10 +232,10 @@ graph TB
         D3[Manual workflow dispatch<br/>train.yml]
     end
 
-    style A1 fill:#90EE90
-    style B1 fill:#87CEEB
-    style C1 fill:#FFD700
-    style D1 fill:#FFA500
+    style A1 fill:#d4edda,stroke:#2e7d32,color:#000
+    style B1 fill:#cff4fc,stroke:#055160,color:#000
+    style C1 fill:#fff3cd,stroke:#664d03,color:#000
+    style D1 fill:#ffe5b4,stroke:#b45309,color:#000
 ```
 
 ---
