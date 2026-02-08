@@ -1,0 +1,17 @@
+# ConfigMap with Grafana dashboard JSON
+# Apply with: kubectl create configmap wms-dashboard-configmap --from-file=wms-model.json=helm/monitoring/dashboards/wms-model.json -n monitoring
+#
+# Or use this file:
+# kubectl apply -f helm/monitoring/dashboard-configmap.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wms-dashboard-configmap
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  wms-model.json: |-
+    # Dashboard JSON loaded from helm/monitoring/dashboards/wms-model.json
+    # Use kubectl create configmap instead of this file for easier management

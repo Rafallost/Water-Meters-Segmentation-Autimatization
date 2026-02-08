@@ -1,0 +1,35 @@
+# ServiceMonitor for WMS Model API
+# Tells Prometheus to scrape metrics from FastAPI /metrics endpoint
+#
+# Apply with:
+#   kubectl apply -f helm/monitoring/servicemonitor.yaml
+#
+# Verify:
+#   kubectl get servicemonitor -n default wms-model-metrics
+#   # Check Prometheus UI → Status → Targets → should show wms-model endpoint
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: wms-model-metrics
+  namespace: default
+  labels:
+    app: wms-model
+    prometheus: kube-prometheus  # Match prometheus.prometheusSpec.serviceMonitorSelector
+spec:
+  # Select the wms-model service
+  selector:
+    matchLabels:
+      app: wms-model
+
+  # Define the metrics endpoint
+  endpoints:
+    - port: http  # Port name from Service
+      path: /metrics
+      interval: 15s  # Scrape every 15 seconds
+      scrapeTimeout: 10s
+
+  # Namespace to watch (if different from ServiceMonitor namespace)
+  namespaceSelector:
+    matchNames:
+      - default

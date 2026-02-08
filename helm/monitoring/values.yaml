@@ -1,0 +1,189 @@
+# Helm values for kube-prometheus-stack
+# Deploys Prometheus + Grafana + Alertmanager on k3s
+#
+# Installation:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm repo update
+#   helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+#     --namespace monitoring --create-namespace \
+#     --values helm/monitoring/values.yaml
+#
+# ⚠️ Resource Requirements:
+#   - Minimum: t3.medium (4 GB RAM)
+#   - Recommended: t3.large (8 GB RAM)
+#   - t3.small (2 GB RAM) will likely OOM!
+
+# Prometheus configuration
+prometheus:
+  prometheusSpec:
+    # Resource limits for Prometheus
+    resources:
+      requests:
+        memory: "400Mi"
+        cpu: "250m"
+      limits:
+        memory: "800Mi"
+        cpu: "500m"
+
+    # Retention
+    retention: 7d
+    retentionSize: "5GB"
+
+    # Storage
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+    # ServiceMonitor selector
+    # Enable discovery of ServiceMonitors with matching labels
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector:
+      matchLabels:
+        prometheus: kube-prometheus
+
+    # Pod monitor selector
+    podMonitorSelectorNilUsesHelmValues: false
+
+# Grafana configuration
+grafana:
+  enabled: true
+
+  # Admin credentials
+  adminPassword: "admin"  # Change in production!
+
+  # Resource limits
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+  # Persistence
+  persistence:
+    enabled: true
+    size: 5Gi
+
+  # Dashboards
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'wms-dashboards'
+          orgId: 1
+          folder: 'WMS Model'
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/wms
+
+  # Load custom dashboards
+  dashboardsConfigMaps:
+    wms: "wms-dashboard-configmap"
+
+  # Data sources (Prometheus auto-configured)
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://kube-prometheus-stack-prometheus:9090
+          access: proxy
+          isDefault: true
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 80
+
+  # Ingress (optional - for external access)
+  ingress:
+    enabled: false
+    # Uncomment to enable external access:
+    # enabled: true
+    # hosts:
+    #   - grafana.example.com
+    # tls:
+    #   - secretName: grafana-tls
+    #     hosts:
+    #       - grafana.example.com
+
+# Alertmanager configuration
+alertmanager:
+  enabled: true
+
+  alertmanagerSpec:
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+
+# Node exporter (system metrics)
+nodeExporter:
+  enabled: true
+
+# Kube-state-metrics (Kubernetes metrics)
+kubeStateMetrics:
+  enabled: true
+
+# Disable unused components to save resources
+kubeApiServer:
+  enabled: false
+kubelet:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+coreDns:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+# Default alert rules
+defaultRules:
+  create: true
+  rules:
+    alertmanager: false
+    etcd: false
+    configReloaders: false
+    general: true
+    k8s: false
+    kubeApiserverAvailability: false
+    kubeApiserverSlos: false
+    kubelet: false
+    kubeProxy: false
+    kubePrometheusGeneral: true
+    kubePrometheusNodeRecording: false
+    kubernetesApps: false
+    kubernetesResources: true
+    kubernetesStorage: false
+    kubernetesSystem: false
+    kubeScheduler: false
+    kubeStateMetrics: false
+    network: false
+    node: true
+    nodeExporterAlerting: false
+    nodeExporterRecording: false
+    prometheus: true
+    prometheusOperator: true
