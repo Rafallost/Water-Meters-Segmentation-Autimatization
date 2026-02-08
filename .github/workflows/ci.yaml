@@ -31,7 +31,7 @@ jobs:
 
       - name: Run unit tests
         run: |
-          pytest WMS/tests/ -v --cov=WMS/src --cov-report=term-missing
+          pytest WMS/tests/ -v --cov=WMS/src --cov-report=term-missing --cov-report=html
 
       - name: Upload coverage report
         if: always()
