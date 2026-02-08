@@ -24,10 +24,11 @@ This project demonstrates DevOps best practices applied to machine learning, fea
 cp /path/to/new/*.jpg WMS/data/training/images/
 cp /path/to/new/*.png WMS/data/training/masks/
 
-# 2. Commit and push
+# 2. Create branch and push
+git checkout -b data/$(date +%Y%m%d-%H%M%S)
 git add WMS/data/training/
 git commit -m "data: add new training samples"
-git push origin HEAD:data/staging  # Magic branch - auto-creates PR
+git push origin HEAD  # Auto-creates PR
 
 # 3. Wait ~10 minutes for training
 # 4. Check PR for training results

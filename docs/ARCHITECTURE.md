@@ -197,11 +197,8 @@ Elastic IP (optional, not currently used)
 User Action → Workflow Trigger → Jobs → Steps → Tools
 
 Example:
-  git push data/staging
-    ↓
-  data-staging.yaml
-    ↓
-  Creates timestamped branch
+  git checkout -b data/$(date +%Y%m%d-%H%M%S)
+  git push origin HEAD
     ↓
   data-upload.yaml
     ↓

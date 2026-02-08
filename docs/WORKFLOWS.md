@@ -184,49 +184,31 @@ This document explains **all GitHub Actions workflows** in this project and when
 
 ---
 
-### 6. **Data Staging → Branch** (`data-staging.yaml`)
-
-**Purpose:** Automatically create timestamped branch for new data
-**Triggers:** When you push to magic branch `data/staging` or `data/new`
-**Duration:** ~5 seconds
-
-**What it does:**
-1. Creates timestamped branch (e.g., `data/20260207-220516`)
-2. Pushes your data to that branch
-3. That triggers data-upload workflow
-
-**Outcomes:**
-- New branch created automatically
-- Data upload workflow runs on that branch
-
-**Why you need it:** Convenience - you don't need to manually create timestamped branches.
-
----
-
 ## 🎬 Typical Workflow Execution Order
 
 ### Scenario: You have new training data
 
 ```
-1. You: git push origin data/staging
+1. You: git checkout -b data/$(date +%Y%m%d-%H%M%S)
+   You: git push origin HEAD
    ↓
-2. data-staging.yaml creates data/20260207-123456 branch
-   ↓
-3. data-upload.yaml runs:
-   - data-qa.yaml validates data ✅
+2. data-upload.yaml runs:
+   - Validates data (Data QA) ✅
    - Creates PR #5
    ↓
-4. train.yml runs on PR #5:
+3. train.yml runs on PR #5:
    - start-infra: EC2 starts
    - train (1,2,3): 3 parallel training jobs
    - aggregate-results: Best model promoted ✅
    - stop-infra: EC2 stops
    - Comment on PR: "📈 MODEL IMPROVED"
    - Auto-approve PR
+   - Auto-merge (if improved)
    ↓
-5. You: Merge PR #5
-   ↓
-6. (Future) Deploy workflow: Build → ECR → k3s
+4. release-deploy.yaml (after merge):
+   - Build Docker image
+   - Push to ECR
+   - Deploy to k3s via Helm
 ```
 
 ---
@@ -261,13 +243,11 @@ This document explains **all GitHub Actions workflows** in this project and when
 ## 🔄 Workflow Dependencies
 
 ```
-data-staging.yaml (optional convenience)
+User creates branch: data/TIMESTAMP
         ↓
-data-upload.yaml (creates PR)
+data-upload.yaml (validates + creates PR)
         ↓ triggers on PR
-data-qa.yaml (validation check)
-        ↓ if passes
-train.yml (main training)
+train.yml (main training pipeline)
         ↓ uses
 ec2-control.yaml (infrastructure management)
 ```

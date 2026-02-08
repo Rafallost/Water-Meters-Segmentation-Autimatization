@@ -31,27 +31,7 @@ cat report.json
 
 ---
 
-### Step 2: Push Data (Magic Branch Method)
-
-```bash
-# Create a commit with your new data
-git add WMS/data/training/
-git commit -m "data: add 5 new water meter images"
-
-# Push to magic branch - system auto-creates timestamped branch
-git push origin HEAD:data/staging
-```
-
-**What happens automatically:**
-1. `data-staging` workflow creates branch `data/YYYYMMDD-HHMMSS`
-2. Your data is pushed to that branch
-3. `data-upload` workflow runs validation
-4. If validation passes: **Pull Request is created automatically**
-5. If validation fails: **Commit comment shows errors**
-
----
-
-### Step 2 Alternative: Manual Branch Method
+### Step 2: Create Branch and Push Data
 
 ```bash
 # Create timestamped branch manually
