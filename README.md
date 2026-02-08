@@ -24,16 +24,22 @@ This project demonstrates DevOps best practices applied to machine learning, fea
 cp /path/to/new/*.jpg WMS/data/training/images/
 cp /path/to/new/*.png WMS/data/training/masks/
 
-# 2. Create branch and push
-git checkout -b data/$(date +%Y%m%d-%H%M%S)
+# 2. Commit and push (hook auto-creates branch!)
 git add WMS/data/training/
 git commit -m "data: add new training samples"
-git push origin HEAD  # Auto-creates PR
+git push origin main  # Pre-push hook redirects to data/TIMESTAMP
 
 # 3. Wait ~10 minutes for training
 # 4. Check PR for training results
 # 5. Merge if model improved!
 ```
+
+**How it works:** Pre-push hook detects training data changes and automatically:
+- Creates branch `data/YYYYMMDD-HHMMSS`
+- Pushes your data there (not to main)
+- Triggers automated PR → validation → training → auto-merge flow
+
+👉 **[How hooks work](docs/BRANCH_PROTECTION.md#-two-layer-protection-system)**
 
 **That's it!** The system handles:
 - Data validation

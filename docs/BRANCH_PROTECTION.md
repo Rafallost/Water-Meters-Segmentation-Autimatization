@@ -1,6 +1,251 @@
-# Branch Protection Setup
+# Branch Protection & Git Hooks
 
-This guide shows how to configure branch protection for `main` branch.
+This guide explains the **two-layer protection system** for the `main` branch.
+
+---
+
+## 🛡️ Two-Layer Protection System
+
+This project uses **2 complementary protection mechanisms**:
+
+### Layer 1: Pre-Push Hook (Local) 🎣
+
+**File:** `devops/hooks/pre-push`
+**Scope:** Runs on YOUR computer before `git push`
+**Purpose:** Automatically redirect training data to proper branch
+
+**How it works:**
+```bash
+git push origin main
+  ↓
+Hook checks: Did you change WMS/data/training/?
+  ↓
+┌─────────────────────┬────────────────────────┐
+│ YES (training data) │ NO (code/docs/config)  │
+├─────────────────────┼────────────────────────┤
+│ 🚫 BLOCKS push      │ ✅ ALLOWS push         │
+│ Creates branch      │ Goes to Layer 2 ➡️     │
+│ data/TIMESTAMP      │                        │
+│ Pushes there        │                        │
+└─────────────────────┴────────────────────────┘
+```
+
+**Example - Training Data:**
+```bash
+git add WMS/data/training/images/*.jpg
+git commit -m "data: new samples"
+git push origin main
+
+# Hook intercepts:
+🔍 Checking for training data changes...
+🚫 Direct push to main with training data blocked
+📦 Creating branch: data/20260208-142530
+🚀 Pushing to data/20260208-142530...
+✅ Success! Your changes are now on branch: data/20260208-142530
+
+Next steps:
+  1. GitHub Actions will validate your data
+  2. If valid, a Pull Request will be created automatically
+  3. Training will run automatically
+  4. If model improves, PR will be auto-approved
+  5. You can then merge the PR
+
+# ERROR: [remote rejected] - THIS IS NORMAL!
+# Your data was successfully pushed to the data branch
+```
+
+**Example - Code/Docs/Workflows:**
+```bash
+git add .github/workflows/train.yml
+git commit -m "fix: update workflow"
+git push origin main
+
+# Hook allows:
+🔍 Checking for training data changes...
+# No training data changes detected
+# ✅ Push continues to Layer 2 (Branch Protection)
+```
+
+---
+
+### Layer 2: Branch Protection (GitHub) 🔒
+
+**Scope:** Enforced on GitHub servers
+**Purpose:** Ensure code quality through PR process
+
+**Rules:**
+- ✅ All changes through Pull Requests (except owner)
+- ✅ Required status checks must pass
+- ✅ Owner can bypass (for code/docs/workflows)
+- ✅ Others CANNOT bypass (forced to use PRs)
+
+**Owner vs Others:**
+| Who | Push to main | Result |
+|-----|--------------|--------|
+| **Owner (you)** | Code/docs/workflows | ✅ Allowed (bypass permission) |
+| **Owner (you)** | Training data | 🚫 Blocked by hook → redirected to `data/*` |
+| **Contributors** | Anything | 🚫 Blocked → must use PR |
+
+---
+
+## 🎯 Complete Flow Examples
+
+### Scenario 1: Owner Adds Training Data
+
+```bash
+# 1. You modify training data
+git add WMS/data/training/
+git commit -m "data: add 10 new samples"
+git push origin main
+
+# 2. Pre-push hook intercepts (Layer 1)
+→ Creates data/20260208-142530
+→ Pushes there
+→ Blocks push to main
+
+# 3. GitHub Actions trigger automatically
+→ data-upload.yaml validates data
+→ Creates PR #42 to main
+→ train.yml runs (3 training attempts)
+→ Quality gate checks if model improved
+
+# 4. If model improved:
+→ Auto-approve PR
+→ Auto-merge to main
+→ release-deploy.yaml deploys new model
+
+# 5. Done! Zero manual work after initial push
+```
+
+---
+
+### Scenario 2: Owner Modifies Code/Docs
+
+```bash
+# 1. You fix a bug in training code
+git add WMS/src/train.py
+git commit -m "fix: correct loss calculation"
+git push origin main
+
+# 2. Pre-push hook checks (Layer 1)
+→ No training data changes
+→ ✅ Allows push
+
+# 3. Branch protection checks (Layer 2)
+→ You're owner with bypass permission
+→ ✅ Allows push
+
+# 4. Commit goes directly to main
+remote: Bypassed rule violations for refs/heads/main
+To github.com:Rafallost/Water-Meters-Segmentation-Autimatization.git
+   abc1234..def5678  main -> main
+
+# Note: No tests run BEFORE merge (you bypassed)
+# But release-deploy.yaml may trigger if you changed serve code
+```
+
+**⚠️ Best Practice:** For large code changes, use PR even as owner:
+```bash
+git checkout -b feature/major-refactor
+git push origin feature/major-refactor
+# Create PR → Tests run → Review → Merge
+```
+
+---
+
+### Scenario 3: Contributor Adds Training Data
+
+```bash
+# 1. Contributor has hook installed
+git add WMS/data/training/
+git commit -m "data: new samples"
+git push origin main
+
+# 2. Pre-push hook intercepts (Layer 1)
+→ Creates data/20260208-150000
+→ Pushes there
+→ Same flow as Scenario 1
+
+# 3. Auto-PR created, training runs, auto-merge if improved
+```
+
+---
+
+### Scenario 4: Contributor Tries to Push Code (BLOCKED)
+
+```bash
+# 1. Contributor tries to push code
+git add WMS/src/train.py
+git commit -m "fix: bug"
+git push origin main
+
+# 2. Pre-push hook checks (Layer 1)
+→ No training data changes
+→ ✅ Allows (hook doesn't block code)
+
+# 3. Branch protection checks (Layer 2)
+→ Contributor is NOT owner
+→ 🚫 BLOCKS push
+
+# Error:
+remote: error: GH006: Protected branch update failed
+remote: Changes must be made through a pull request
+
+# Solution: Use PR
+git checkout -b fix/bug
+git push origin fix/bug
+# Create PR on GitHub
+```
+
+---
+
+## 📋 Summary Table
+
+| Change Type | Owner | Contributor |
+|-------------|-------|-------------|
+| **Training data** | Hook → `data/*` branch → PR → Auto-merge | Hook → `data/*` branch → PR → Auto-merge |
+| **Code (small fix)** | Direct push to main ✅ | ❌ Blocked → Must use PR |
+| **Code (large change)** | PR recommended (optional) | ❌ Must use PR |
+| **Docs/Workflows** | Direct push to main ✅ | ❌ Blocked → Must use PR |
+
+---
+
+## 🔧 Installing the Pre-Push Hook
+
+The hook is already installed if you cloned with submodules. To install manually:
+
+```bash
+# Option 1: Use install script (recommended)
+bash devops/scripts/install-git-hooks.sh
+
+# Option 2: Manual copy
+cp devops/hooks/pre-push .git/hooks/pre-push
+chmod +x .git/hooks/pre-push
+
+# Option 3: Set hooks path (all hooks from devops/hooks/)
+git config core.hooksPath devops/hooks
+```
+
+**Verify installation:**
+```bash
+ls -la .git/hooks/pre-push
+# Should show file with execute permissions
+```
+
+**Test the hook:**
+```bash
+# This should trigger hook:
+touch WMS/data/training/images/test.jpg
+git add WMS/data/training/images/test.jpg
+git commit -m "test: hook"
+git push origin main
+# Should create data/TIMESTAMP branch
+
+# Cleanup
+git reset HEAD~1
+rm WMS/data/training/images/test.jpg
+git push origin --delete data/$(date +%Y%m%d)*  # Delete test branch
+```
 
 ---
 

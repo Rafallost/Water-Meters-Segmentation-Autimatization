@@ -13,7 +13,7 @@ Start here for understanding and using the system:
 | **[WORKFLOWS.md](WORKFLOWS.md)** | ⭐ **Start here!** All pipelines explained | First time setup, debugging workflows |
 | **[USAGE.md](USAGE.md)** | Step-by-step usage guide | Daily operations (uploading data) |
 | **[ARCHITECTURE.md](ARCHITECTURE.md)** | System design and components | Understanding system design |
-| **[BRANCH_PROTECTION.md](BRANCH_PROTECTION.md)** | GitHub branch protection setup | One-time setup |
+| **[BRANCH_PROTECTION.md](BRANCH_PROTECTION.md)** | Two-layer protection: hooks + GitHub rules | Understanding security model |
 
 ---
 
