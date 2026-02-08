@@ -23,10 +23,16 @@ This project demonstrates DevOps best practices applied to machine learning, fea
 
 ```bash
 # One-time setup after git clone:
+
+# Option 1: AWS CLI (Simpler - recommended!)
+python WMS/scripts/sync_model_aws.py
+# Windows: just double-click sync_model_aws.bat
+
+# Option 2: GitHub CLI (if configured)
 python WMS/scripts/sync_model.py
 # Windows: just double-click sync_model.bat
 
-# This will:
+# Both will:
 # 1. Start EC2 instance (via GitHub Actions)
 # 2. Download Production model from MLflow
 # 3. Save to WMS/models/production.pth (gitignored, local cache)
@@ -66,8 +72,8 @@ git push origin main  # Pre-push hook redirects to data/TIMESTAMP
 # 5. Merge if model improved!
 
 # 6. Download the new Production model
-python WMS/scripts/sync_model.py --force  # Re-download latest version
-# Windows: double-click sync_model.bat
+python WMS/scripts/sync_model_aws.py --force  # Re-download latest version
+# Windows: double-click sync_model_aws.bat
 
 # 7. Use it for predictions
 python WMS/src/predicts.py

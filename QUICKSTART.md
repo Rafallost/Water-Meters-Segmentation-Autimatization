@@ -8,22 +8,37 @@
 
 ### Automatic Method (Recommended)
 
-```bash
-# One command - does everything!
-python WMS/scripts/sync_model.py
+**Option 1: Using AWS CLI (Simpler - No GitHub CLI needed!)**
 
-# Windows users: just double-click sync_model.bat
+```bash
+# One command - uses AWS CLI directly!
+python WMS/scripts/sync_model_aws.py
+
+# Windows users: just double-click sync_model_aws.bat
 ```
 
-This script will:
-1. ✅ Start EC2 instance (via GitHub Actions)
-2. ✅ Wait for MLflow to be ready
-3. ✅ Download Production model to `WMS/models/production.pth`
-4. ✅ Ask if you want to stop EC2
+**Prerequisites:**
+- AWS CLI installed (already have it!)
+- AWS credentials configured (`~/.aws/credentials` or environment variables)
+
+**Option 2: Using GitHub CLI (If you have it configured)**
+
+```bash
+# Uses GitHub Actions workflows
+python WMS/scripts/sync_model.py
+
+# Windows users: double-click sync_model.bat
+```
 
 **Prerequisites:**
 - GitHub CLI installed and authenticated: `gh auth login`
 - See [WMS/scripts/README.md](WMS/scripts/README.md) for installation
+
+Both scripts will:
+1. ✅ Start EC2 instance
+2. ✅ Wait for MLflow to be ready
+3. ✅ Download Production model to `WMS/models/production.pth`
+4. ✅ Ask if you want to stop EC2
 
 ### Manual Method (Alternative)
 

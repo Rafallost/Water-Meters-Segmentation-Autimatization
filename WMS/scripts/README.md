@@ -2,9 +2,54 @@
 
 Utility scripts for common operations.
 
-## sync_model.py - Automatic Model Synchronization
+## sync_model_aws.py - Automatic Model Synchronization (AWS CLI)
 
-**Purpose:** Automatically download the latest Production model from MLflow without manual EC2 management.
+**Purpose:** Automatically download the latest Production model from MLflow using AWS CLI directly.
+
+**✅ Recommended:** Simpler than sync_model.py - uses AWS CLI directly (no GitHub CLI needed!)
+
+### Quick Start
+
+```bash
+# Automatic mode (AWS CLI)
+python WMS/scripts/sync_model_aws.py
+
+# Windows: just double-click sync_model_aws.bat in project root
+```
+
+### Prerequisites
+
+1. **AWS CLI** (you already have it!)
+   ```bash
+   aws --version
+   ```
+
+2. **AWS Credentials configured:**
+   - Option A: `~/.aws/credentials` file
+   - Option B: Environment variables (AWS_ACCESS_KEY_ID, etc.)
+
+3. **Terraform infrastructure deployed** (EC2 instance with tag `wms-k3s`)
+
+### Usage Options
+
+```bash
+# Basic usage
+python WMS/scripts/sync_model_aws.py
+
+# Force re-download
+python WMS/scripts/sync_model_aws.py --force
+
+# Keep EC2 running after download
+python WMS/scripts/sync_model_aws.py --no-stop
+```
+
+---
+
+## sync_model.py - Automatic Model Synchronization (GitHub CLI)
+
+**Purpose:** Automatically download the latest Production model from MLflow using GitHub Actions workflows.
+
+**Note:** Requires GitHub CLI installed and configured. Use `sync_model_aws.py` if you don't have GitHub CLI.
 
 ### Quick Start
 
