@@ -37,6 +37,32 @@ jobs:
         run: |
           pip install opencv-python numpy Pillow PyYAML dvc[s3] boto3
 
+      - name: Configure AWS credentials (for DVC pull)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Pull training data from DVC/S3
+        run: |
+          echo "Checking if training data needs to be pulled from DVC..."
+
+          # Check if data is tracked by Git (POC mode) or DVC
+          if git ls-files --error-unmatch WMS/data/training/images/ > /dev/null 2>&1; then
+            echo "✅ Training data is tracked by Git (already in repo)"
+            echo "Skipping DVC pull"
+          elif [ -f "WMS/data/training/images.dvc" ]; then
+            echo "📦 Training data is tracked by DVC"
+            echo "Pulling data from S3..."
+            dvc pull WMS/data/training/images.dvc WMS/data/training/masks.dvc
+            echo "✅ Data pulled successfully"
+          else
+            echo "⚠️  No training data found (neither Git nor DVC)"
+            echo "This is normal for first-time data upload"
+          fi
+
       - name: Run Data QA Validation
         id: data_qa
         run: |
