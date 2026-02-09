@@ -21,3 +21,9 @@ mlflow_bucket = "wms-mlflow-artifacts-055677744286"
 
 # GitHub repository (leave as-is unless you forked the repo)
 github_repo = "Rafallost/Water-Meters-Segmentation-Autimatization"
+
+# Monitoring Configuration (Prometheus + Grafana)
+# Requires t3.large or larger (you have t3.large - OK!)
+# Adds ~500MB RAM usage, ~2GB disk, +3 min startup time
+install_monitoring = true
+grafana_password   = "WMS-Monitoring-2026!"  # Change in production!
