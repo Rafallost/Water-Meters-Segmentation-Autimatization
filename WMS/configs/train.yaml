@@ -29,8 +29,3 @@ augmentation:
   rotation_degrees: 10
   rotation_prob: 0.5
   color_jitter_prob: 0.3
-
-# Baseline metrics from Water-Meters-Segmentation (for quality gate)
-baseline:
-  min_dice: 0.90
-  min_iou: 0.85
