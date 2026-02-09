@@ -1,6 +1,11 @@
-name: Data Upload & Validation
+name: Training Data Pipeline
 
-# Triggers on push to data/* branches (timestamped branches created by hook or staging)
+# Complete pipeline for training data changes:
+# 1. Data QA validation
+# 2. DVC add + push to S3 (if validation passes)
+# 3. Create/Update Pull Request for review and training
+#
+# Triggers on push to data/* branches (timestamped branches created by pre-push hook)
 # Excludes magic branches handled by data-staging.yaml
 on:
   push:
