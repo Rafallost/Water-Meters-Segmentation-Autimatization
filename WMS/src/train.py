@@ -597,6 +597,12 @@ print(f"Test Dice:      {np.mean(dice_scores):.4f}")
 print(f"Test IoU:       {np.mean(iou_scores):.4f}")
 print(f"Test Hausdorff: {np.mean(hausdorff_dists):.4f}")
 
+# Log final test metrics to MLflow (summary metrics without step)
+# These are the metrics from best.pth evaluated on full test set
+mlflow.log_metric("final_test_dice", float(np.mean(dice_scores)))
+mlflow.log_metric("final_test_iou", float(np.mean(iou_scores)))
+mlflow.log_metric("final_test_hausdorff", float(np.mean(hausdorff_dists)))
+
 
 model.eval()
 images, masks = next(iter(testLoader))

@@ -209,8 +209,9 @@ jobs:
               if runs:
                   run = runs[0]
                   metrics = run.data.metrics
-                  current_dice = metrics.get('val_dice', 0)
-                  current_iou = metrics.get('val_iou', 0)
+                  # Use final test metrics from best.pth (not last epoch validation metrics)
+                  current_dice = metrics.get('final_test_dice', 0)
+                  current_iou = metrics.get('final_test_iou', 0)
 
                   # Get baseline from current Production model (if exists)
                   try:
@@ -220,8 +221,9 @@ jobs:
                           prod_version = prod_versions[0]
                           # Get the run that created this model version
                           prod_run = client.get_run(prod_version.run_id)
-                          baseline_dice = prod_run.data.metrics.get('val_dice', 0)
-                          baseline_iou = prod_run.data.metrics.get('val_iou', 0)
+                          # Use final test metrics from best.pth (not validation metrics)
+                          baseline_dice = prod_run.data.metrics.get('final_test_dice', 0)
+                          baseline_iou = prod_run.data.metrics.get('final_test_iou', 0)
                           print(f"Using Production model baseline: Dice={baseline_dice:.4f}, IoU={baseline_iou:.4f}")
                       else:
                           # No Production model yet - use first-run baseline (very permissive)
@@ -234,12 +236,14 @@ jobs:
                       baseline_dice = 0.0
                       baseline_iou = 0.0
 
-                  # Quality gate thresholds (2% worse than baseline is acceptable)
-                  threshold_dice = max(0.0, baseline_dice * 0.98)
-                  threshold_iou = max(0.0, baseline_iou * 0.98)
+                  # Quality gate: both metrics must be better than baseline
+                  # No threshold - simply require improvement in BOTH metrics
+                  improved = current_dice > baseline_dice and current_iou > baseline_iou
+                  passed = improved  # passed = improved (no separate threshold)
 
-                  passed = current_dice >= threshold_dice and current_iou >= threshold_iou
-                  improved = current_dice > baseline_dice or current_iou > baseline_iou
+                  # Keep threshold values for reporting (same as baseline for strict comparison)
+                  threshold_dice = baseline_dice
+                  threshold_iou = baseline_iou
 
                   result = {
                       "attempt": ${{ matrix.attempt }},
@@ -531,8 +535,8 @@ jobs:
 
             | Metric | Value | Baseline | Threshold | Status |
             |--------|-------|----------|-----------|--------|
-            | **Dice** | ${bestResult ? bestResult.metrics.dice.toFixed(4) : 'N/A'} | 0.9275 | 0.9075 | ${bestResult && bestResult.metrics.dice >= 0.9075 ? '✅' : '❌'} |
-            | **IoU** | ${bestResult ? bestResult.metrics.iou.toFixed(4) : 'N/A'} | 0.8865 | 0.8665 | ${bestResult && bestResult.metrics.iou >= 0.8665 ? '✅' : '❌'} |
+            | **Dice** | ${bestResult ? bestResult.metrics.dice.toFixed(4) : 'N/A'} | ${bestResult ? bestResult.baseline.dice.toFixed(4) : 'N/A'} | ${bestResult ? bestResult.thresholds.dice.toFixed(4) : 'N/A'} | ${bestResult && bestResult.passed ? '✅' : '❌'} |
+            | **IoU** | ${bestResult ? bestResult.metrics.iou.toFixed(4) : 'N/A'} | ${bestResult ? bestResult.baseline.iou.toFixed(4) : 'N/A'} | ${bestResult ? bestResult.thresholds.iou.toFixed(4) : 'N/A'} | ${bestResult && bestResult.passed ? '✅' : '❌'} |
 
             ### Quality Gate
             - **Any attempt passed**: ${anyPassed ? 'YES ✅' : 'NO ❌'}
