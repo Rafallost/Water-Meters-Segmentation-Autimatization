@@ -65,6 +65,27 @@ jobs:
             --namespace default \
             --create-namespace
 
+      - name: Debug - Check Deployment State
+        if: always()
+        run: |
+          echo "=== Helm Releases ==="
+          helm list -A
+
+          echo -e "\n=== All Deployments ==="
+          kubectl get deployments -A
+
+          echo -e "\n=== All Pods ==="
+          kubectl get pods -A --show-labels
+
+          echo -e "\n=== Pods in default namespace ==="
+          kubectl get pods -n default -o wide
+
+          echo -e "\n=== Describe wms-model deployment (if exists) ==="
+          kubectl describe deployment -l release=wms-model -n default || echo "No deployment found"
+
+          echo -e "\n=== Events ==="
+          kubectl get events -n default --sort-by='.lastTimestamp' | tail -20
+
       - name: Verify Deployment
         run: |
           echo "Waiting for pod to be ready..."
