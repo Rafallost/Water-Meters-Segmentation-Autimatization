@@ -252,7 +252,7 @@ C4Context
     }
 
     System_Boundary(aws, "AWS Cloud") {
-        Container(ec2, "EC2 Instance", "t3.large", "k3s, MLflow, Docker")
+        Container(ec2, "EC2 Instance", "t3.xlarge", "k3s, MLflow, Docker")
         ContainerDb(s3, "S3 Bucket", "Object Storage", "DVC data, MLflow artifacts")
         Container(ecr, "ECR Registry", "Docker Registry", "Model images")
     }

@@ -5,7 +5,7 @@ This guide explains how to deploy and use the monitoring stack (Prometheus + Gra
 ## ⚠️ Important: Resource Requirements
 
 **Minimum:** t3.medium (4 GB RAM)
-**Recommended:** t3.large (8 GB RAM)
+**Recommended:** t3.xlarge (8 GB RAM)
 **DO NOT USE:** t3.small (2 GB RAM) - will cause OOM crashes!
 
 The monitoring stack adds significant resource usage:
@@ -246,7 +246,7 @@ kubectl top pods -n monitoring
 # 2. Reduce Prometheus retention
 # Edit values.yaml: retention: 3d (instead of 7d)
 
-# 3. Upgrade to t3.large
+# 3. Upgrade to t3.xlarge
 # Better solution: more stable, only $2 more over 100h
 
 # 4. Reduce scrape interval

@@ -83,7 +83,7 @@ Max retries exceeded with url: /api/2.0/mlflow/runs/log-batch
 - SQLite backend is single-threaded and struggles with high-frequency writes
 - 100 epochs × 9 metrics = 900 write operations per training attempt
 - No recovery time between sequential training attempts
-- t3.large (8GB RAM) is sufficient for compute, but SQLite is the bottleneck
+- t3.xlarge (8GB RAM) is sufficient for compute, but SQLite is the bottleneck
 
 **Fixes implemented:**
 
