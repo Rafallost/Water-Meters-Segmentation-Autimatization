@@ -122,6 +122,42 @@ jobs:
 
           echo "✅ Deployment verified successfully"
 
+      - name: Cleanup Old Deployments
+        if: success()
+        run: |
+          echo "Cleaning up old model-* namespaces..."
+
+          # Find all old model-* namespaces (exclude default)
+          OLD_NAMESPACES=$(kubectl get namespaces -o json | \
+            jq -r '.items[].metadata.name | select(startswith("model-"))')
+
+          if [[ -z "$OLD_NAMESPACES" ]]; then
+            echo "✅ No old namespaces to clean up"
+            exit 0
+          fi
+
+          echo "Found old namespaces:"
+          echo "$OLD_NAMESPACES" | while read -r ns; do echo "  - $ns"; done
+
+          # Uninstall Helm releases first
+          echo "$OLD_NAMESPACES" | while read -r ns; do
+            RELEASES=$(helm list -n "$ns" -q 2>/dev/null || true)
+            if [[ -n "$RELEASES" ]]; then
+              echo "$RELEASES" | while read -r release; do
+                echo "Uninstalling: $release (namespace: $ns)"
+                helm uninstall "$release" -n "$ns" || true
+              done
+            fi
+          done
+
+          # Delete namespaces
+          echo "$OLD_NAMESPACES" | while read -r ns; do
+            echo "Deleting namespace: $ns"
+            kubectl delete namespace "$ns" --timeout=60s || true
+          done
+
+          echo "✅ Cleanup complete!"
+
       - name: Deployment Summary
         if: always()
         run: |
