@@ -1,0 +1,94 @@
+name: Deploy Model to k3s
+
+# Reusable workflow for deploying the model to k3s cluster
+# Used by both training workflow (after model improvement) and release workflow (code changes)
+
+on:
+  workflow_call:
+    inputs:
+      trigger_reason:
+        description: 'Deployment trigger: training, release, or manual'
+        type: string
+        required: false
+        default: 'manual'
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+      AWS_SESSION_TOKEN:
+        required: false
+
+jobs:
+  deploy:
+    name: Build & Deploy to k3s
+    runs-on: self-hosted  # CRITICAL: Must run on EC2 for k3s access
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # No need to configure AWS credentials - EC2 instance has IAM role (LabInstanceProfile)
+      # Self-hosted runner inherits EC2's instance profile credentials automatically
+
+      - name: Login to ECR
+        run: |
+          python3 << 'EOF'
+          import boto3
+          import subprocess
+          import base64
+
+          ecr = boto3.client('ecr', region_name='us-east-1')
+          token = ecr.get_authorization_token()
+          auth_token = token['authorizationData'][0]['authorizationToken']
+          username, password = base64.b64decode(auth_token).decode().split(':')
+
+          subprocess.run([
+              'docker', 'login',
+              '--username', username,
+              '--password-stdin',
+              '055677744286.dkr.ecr.us-east-1.amazonaws.com'
+          ], input=password.encode(), check=True)
+          EOF
+
+      - name: Build + Push Docker
+        run: |
+          ECR_REPO=055677744286.dkr.ecr.us-east-1.amazonaws.com/wms-model
+          docker build -f docker/Dockerfile.serve -t $ECR_REPO:latest .
+          docker push $ECR_REPO:latest
+
+      - name: Deploy via Helm
+        run: |
+          helm upgrade --install wms-model devops/helm/ml-model/ \
+            -f infrastructure/helm-values.yaml \
+            --namespace default \
+            --create-namespace
+
+      - name: Verify Deployment
+        run: |
+          echo "Waiting for pod to be ready..."
+          kubectl wait --for=condition=ready pod \
+            -l app=wms-model \
+            --timeout=300s
+
+          echo "Testing health endpoint..."
+          kubectl exec -l app=wms-model -- curl -f http://localhost:8000/health
+
+          echo "✅ Deployment verified successfully"
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** ${{ inputs.trigger_reason }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ Model deployed successfully to k3s cluster" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Deployment failed - check logs above" >> $GITHUB_STEP_SUMMARY
+          fi

@@ -322,21 +322,6 @@ jobs:
           print(f"✅ Model version {model_version.version} promoted to Production!")
           EOF
 
-      - name: Deploy model to EC2 (validation smoke test)
-        if: steps.quality_gate.outputs.improved == 'true'
-        run: |
-          echo "🚀 Deploying model to EC2 for validation..."
-          echo "Note: This is a quick smoke test to validate deployment works."
-          echo "For actual usage, run: ./devops/scripts/deploy-to-cloud.sh"
-          echo ""
-
-          # TODO: Add Helm deployment when infrastructure is ready
-          # helm upgrade wms-app ./infrastructure/helm \
-          #   -f infrastructure/helm-values.yaml \
-          #   --set image.tag=${{ github.sha }}
-
-          echo "✅ Deployment validation passed!"
-
       - name: Update model metadata in Git
         if: steps.quality_gate.outputs.improved == 'true'
         run: |
@@ -470,10 +455,20 @@ jobs:
           echo "  4. Close PR and try again with better data"
           exit 1
 
+  # Deploy improved model to k3s
+  deploy-model:
+    name: Deploy Improved Model
+    needs: [start-infra, train]
+    if: needs.train.outputs.improved == 'true'
+    uses: ./.github/workflows/deploy-model.yaml
+    with:
+      trigger_reason: training
+    secrets: inherit
+
   # Always stop EC2
   stop-infra:
     name: Stop EC2 Infrastructure
-    needs: [start-infra, train]
+    needs: [start-infra, train, deploy-model]
     if: always()
     uses: ./.github/workflows/ec2-control.yaml
     with:
@@ -483,7 +478,7 @@ jobs:
   # Auto-merge PR if improved
   auto-merge:
     name: Auto-merge PR
-    needs: [train, stop-infra]
+    needs: [train, deploy-model, stop-infra]
     if: |
       github.event_name == 'pull_request' &&
       needs.train.outputs.improved == 'true'

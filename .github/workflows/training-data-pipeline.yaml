@@ -37,7 +37,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install dvc[s3] pyyaml pillow boto3 opencv-python numpy
+          pip install 'dvc[s3]' pyyaml pillow 'boto3>=1.34.0,<2.0.0' opencv-python numpy
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4

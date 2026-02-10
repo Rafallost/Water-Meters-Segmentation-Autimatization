@@ -16,143 +16,29 @@ permissions:
   contents: read
 
 jobs:
-  # Start EC2 for deployment (runs on GitHub-hosted runner)
+  # Start EC2 infrastructure using reusable workflow
   start-infra:
     name: Start EC2 Infrastructure
-    runs-on: ubuntu-latest
-    outputs:
-      instance_id: ${{ steps.start.outputs.instance_id }}
-      public_ip: ${{ steps.start.outputs.public_ip }}
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: us-east-1
+    uses: ./.github/workflows/ec2-control.yaml
+    with:
+      action: start
+    secrets: inherit
 
-      - name: Start EC2 instance
-        id: start
-        run: |
-          echo "Starting EC2 instance for deployment..."
+  # Deploy model using reusable workflow
+  deploy:
+    name: Deploy to k3s
+    needs: start-infra
+    uses: ./.github/workflows/deploy-model.yaml
+    with:
+      trigger_reason: release
+    secrets: inherit
 
-          # Find stopped instance
-          INSTANCE_ID=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=wms-project-k3s" \
-                     "Name=instance-state-name,Values=stopped,running" \
-            --query "Reservations[0].Instances[0].InstanceId" \
-            --output text)
-
-          if [ "$INSTANCE_ID" == "None" ] || [ -z "$INSTANCE_ID" ]; then
-            echo "ERROR: No EC2 instance found!"
-            exit 1
-          fi
-
-          echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
-
-          # Start if stopped
-          STATE=$(aws ec2 describe-instances \
-            --instance-ids $INSTANCE_ID \
-            --query "Reservations[0].Instances[0].State.Name" \
-            --output text)
-
-          if [ "$STATE" == "stopped" ]; then
-            echo "Starting instance $INSTANCE_ID..."
-            aws ec2 start-instances --instance-ids $INSTANCE_ID
-            aws ec2 wait instance-running --instance-ids $INSTANCE_ID
-            echo "Instance started successfully"
-          else
-            echo "Instance already running"
-          fi
-
-          # Get public IP
-          PUBLIC_IP=$(aws ec2 describe-instances \
-            --instance-ids $INSTANCE_ID \
-            --query "Reservations[0].Instances[0].PublicIpAddress" \
-            --output text)
-
-          echo "public_ip=$PUBLIC_IP" >> $GITHUB_OUTPUT
-          echo "EC2 ready at $PUBLIC_IP"
-
-  # Build and deploy (runs on self-hosted runner on EC2)
-  build-and-deploy:
-    name: Build & Deploy to k3s
-    needs: [start-infra]
-    runs-on: self-hosted  # Must run on EC2 for localhost access to k3s and MLflow
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      # No need to configure AWS credentials - EC2 instance has IAM role (LabInstanceProfile)
-      # Self-hosted runner inherits EC2's instance profile credentials automatically
-
-      - name: Login to ECR
-        run: |
-          python3 << 'EOF'
-          import boto3
-          import subprocess
-          import base64
-
-          ecr = boto3.client('ecr', region_name='us-east-1')
-          token = ecr.get_authorization_token()
-          auth_token = token['authorizationData'][0]['authorizationToken']
-          username, password = base64.b64decode(auth_token).decode().split(':')
-
-          subprocess.run([
-              'docker', 'login',
-              '--username', username,
-              '--password-stdin',
-              '055677744286.dkr.ecr.us-east-1.amazonaws.com'
-          ], input=password.encode(), check=True)
-          EOF
-
-      - name: Build + Push Docker
-        run: |
-          ECR_REPO=055677744286.dkr.ecr.us-east-1.amazonaws.com/wms-model
-          docker build -f docker/Dockerfile.serve -t $ECR_REPO:latest .
-          docker push $ECR_REPO:latest
-
-      - name: Deploy via Helm
-        run: |
-          helm upgrade --install wms-model devops/helm/ml-model/ \
-            -f infrastructure/helm-values.yaml \
-            --namespace default \
-            --create-namespace
-
-      - name: Verify Deployment
-        run: |
-          echo "Waiting for pod to be ready..."
-          kubectl wait --for=condition=ready pod \
-            -l app=wms-model \
-            --timeout=300s
-
-          echo "Testing health endpoint..."
-          kubectl exec -l app=wms-model -- curl -f http://localhost:8000/health
-
-          echo "✅ Deployment verified successfully"
-
-  # Stop EC2 after deployment (runs on GitHub-hosted runner)
+  # Stop EC2 infrastructure using reusable workflow
   stop-infra:
     name: Stop EC2 Infrastructure
-    needs: [start-infra, build-and-deploy]
+    needs: [start-infra, deploy]
     if: always()  # Stop even if deployment fails
-    runs-on: ubuntu-latest
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: us-east-1
-
-      - name: Stop EC2 instance
-        run: |
-          INSTANCE_ID="${{ needs.start-infra.outputs.instance_id }}"
-
-          echo "Stopping EC2 instance $INSTANCE_ID..."
-          aws ec2 stop-instances --instance-ids $INSTANCE_ID
-
-          echo "✅ EC2 instance stopped (cost optimization)"
+    uses: ./.github/workflows/ec2-control.yaml
+    with:
+      action: stop
+    secrets: inherit
