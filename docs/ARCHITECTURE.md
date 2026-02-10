@@ -138,9 +138,9 @@ VPC (10.0.0.0/16)
     ├── Port 5000: MLflow (GitHub Actions)
     └── Port 8000: HTTP (future model API)
 
-EC2 Instance (t3.xlarge)
+EC2 Instance (t3.large)
 ├── OS: Amazon Linux 2023
-├── Storage: 40GB
+├── Storage: 100GB
 ├── MLflow Server (systemd service)
 └── k3s (lightweight Kubernetes, future)
 

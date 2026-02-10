@@ -6,7 +6,7 @@ aws_region        = "us-east-1"
 availability_zone = "us-east-1a"
 
 # EC2 Configuration
-instance_type = "t3.large" # 8GB RAM, 2 vCPU - required for ML workloads
+instance_type = "t3.large" # 8GB RAM, 2 vCPU - adequate for ML workloads (AWS Academy limit)
 
 # Your IP address for SSH access - NOW AUTO-DETECTED!
 # No longer needed - automatically detected via https://api.ipify.org

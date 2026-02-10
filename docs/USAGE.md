@@ -525,7 +525,7 @@ terraform apply
 ```
 
 **Common changes:**
-- Change EC2 instance type (t3.xlarge → t3.medium)
+- Change EC2 instance type (t3.large → t3.medium for cost savings)
 - Update security group rules
 - Adjust storage size
 
@@ -734,11 +734,11 @@ This is **industry standard** for ML projects. See: [MLflow Model Registry](http
 
 ### Q: Does `sync_model.py` cost money?
 
-**A:** Yes, but very little (~$0.002 per run):
+**A:** Yes, but very little (~$0.003 per run):
 
-- EC2 t3.xlarge: ~$0.08/hour
+- EC2 t3.large: ~$0.04/hour
 - Sync takes ~5 minutes (including startup)
-- Cost per sync: ~$0.007
+- Cost per sync: ~$0.003
 - Script automatically stops EC2 after download
 
 **Cost optimization:**

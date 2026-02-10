@@ -5,8 +5,9 @@ This guide explains how to deploy and use the monitoring stack (Prometheus + Gra
 ## ⚠️ Important: Resource Requirements
 
 **Minimum:** t3.medium (4 GB RAM)
-**Recommended:** t3.xlarge (8 GB RAM)
+**Recommended:** t3.large (8 GB RAM)
 **DO NOT USE:** t3.small (2 GB RAM) - will cause OOM crashes!
+**Note:** t3.xlarge (16 GB RAM) ideal for production, but AWS Academy limits to t3.large
 
 The monitoring stack adds significant resource usage:
 - Prometheus: ~400-800 MB RAM
@@ -246,8 +247,9 @@ kubectl top pods -n monitoring
 # 2. Reduce Prometheus retention
 # Edit values.yaml: retention: 3d (instead of 7d)
 
-# 3. Upgrade to t3.xlarge
-# Better solution: more stable, only $2 more over 100h
+# 3. Upgrade to t3.large (if on t3.medium)
+# Better solution: more stable, sufficient for monitoring stack
+# (t3.xlarge ideal but not available in AWS Academy)
 
 # 4. Reduce scrape interval
 # Edit servicemonitor.yaml: interval: 30s (instead of 15s)

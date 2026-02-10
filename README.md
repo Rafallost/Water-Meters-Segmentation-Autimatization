@@ -391,14 +391,15 @@ Output: 512×512 binary mask (meter region)
 ## 💰 Cost Breakdown
 
 **Current (with ephemeral infrastructure):**
-- EC2 (t3.xlarge, ephemeral): ~$2-3/month
+- EC2 (t3.large, ephemeral): ~$1-2/month
 - S3 storage: ~$1/month
-- **Total: ~$4/month**
+- **Total: ~$3/month**
+- Note: t3.xlarge (16GB) recommended for production, but AWS Academy limits to t3.large (8GB)
 
 **Traditional (24/7 EC2):**
-- EC2 (t3.xlarge, always on): ~$15/month
+- EC2 (t3.large, always on): ~$7.50/month
 - S3 storage: ~$1/month
-- **Total: ~$18/month**
+- **Total: ~$10/month**
 
 **Savings: 70-80%**
 

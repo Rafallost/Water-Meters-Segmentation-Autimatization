@@ -83,7 +83,7 @@ Max retries exceeded with url: /api/2.0/mlflow/runs/log-batch
 - SQLite backend is single-threaded and struggles with high-frequency writes
 - 100 epochs × 9 metrics = 900 write operations per training attempt
 - No recovery time between sequential training attempts
-- t3.xlarge (8GB RAM) is sufficient for compute, but SQLite is the bottleneck
+- t3.large (8GB RAM) is sufficient for compute, but SQLite is the bottleneck
 
 **Fixes implemented:**
 
@@ -438,6 +438,125 @@ git push
 
 **Date discovered:** 2026-02-08
 **Date fixed:** 2026-02-08
+
+---
+
+## AWS Academy Lab: t3.xlarge Instance Type Not Allowed
+
+**Status:** ✅ RESOLVED (using t3.large instead)
+
+**Issue:**
+AWS Academy Lab accounts restrict certain EC2 instance types. When attempting to create a t3.xlarge instance (16GB RAM, 4 vCPU) via Terraform, the operation is blocked with `UnauthorizedOperation` error.
+
+**Symptoms:**
+```
+Error: creating EC2 Instance: operation error EC2: RunInstances, https response error StatusCode: 403,
+RequestID: ..., api error UnauthorizedOperation: You are not authorized to perform this operation.
+User: arn:aws:sts::055677744286:assumed-role/voclabs/... is not authorized to perform:
+ec2:RunInstances on resource: arn:aws:ec2:us-east-1:055677744286:instance/*
+```
+
+**Root cause:**
+- AWS Academy Lab limits instance types to cost-effective options
+- t3.xlarge (16GB RAM, $0.0832/hour) is above the allowed threshold
+- t3.large (8GB RAM, $0.0416/hour) and smaller are permitted
+
+**Solution:**
+Updated `infrastructure/terraform.tfvars` to use t3.large instead:
+```hcl
+instance_type = "t3.large" # 8GB RAM, 2 vCPU - adequate for ML workloads (AWS Academy limit)
+```
+
+**Impact on project:**
+- ✅ t3.large (8GB RAM) is sufficient for development and testing
+- ✅ k3s, MLflow, and training pipeline work correctly
+- ⚠️ For large datasets (>100 images), may need batch size optimization
+- 💡 Production deployments (non-AWS Academy) should use t3.xlarge or larger
+
+**Cost savings:**
+- t3.large: ~$0.0416/hour (~$7.50/month 24/7, or ~$1-2/month ephemeral)
+- t3.xlarge: ~$0.0832/hour (~$15/month 24/7, or ~$2-3/month ephemeral)
+
+**Date discovered:** 2026-02-10
+**Date resolved:** 2026-02-10
+
+---
+
+## AWS Academy Lab: EC2 Instance Creation Blocked by IAM Policy
+
+**Status:** HISTORICAL - Not applicable to current lab session
+
+**Issue:**
+AWS Academy Lab accounts have explicit IAM deny policies that prevent `ec2:RunInstances` operations. Terraform infrastructure deployment fails completely because the EC2 instance (which hosts k3s, MLflow, and the ML serving application) cannot be created.
+
+**Symptoms:**
+```
+Error: creating EC2 Instance: operation error EC2: RunInstances, https response error StatusCode: 403,
+RequestID: ..., api error UnauthorizedOperation: You are not authorized to perform this operation.
+User: arn:aws:sts::055677744286:assumed-role/voclabs/user4220764=rzablotni is not authorized to perform:
+ec2:RunInstances on resource: arn:aws:ec2:us-east-1:055677744286:instance/* with an explicit deny in an
+identity-based policy: arn:aws:iam::055677744286:policy/Pvoclabs2 (Pvoclabs2).
+```
+
+**Root cause:**
+- AWS Academy Lab uses `voclabs` IAM role with restrictive policies
+- **Explicit deny** on `ec2:RunInstances` cannot be overridden (highest precedence in IAM)
+- This restriction may vary by AWS Academy course/lab session
+- Previous sessions (documented in MEMORY.md) successfully created EC2 instances, suggesting this is a NEW restriction or lab-specific
+
+**Impact:**
+- ❌ Cannot deploy infrastructure via Terraform
+- ❌ No EC2 instance = no k3s cluster
+- ❌ No MLflow server for experiment tracking
+- ❌ No deployment endpoint for model serving
+- ❌ Entire DevOps pipeline is blocked
+
+**Partial success:**
+These resources DO create successfully:
+- ✅ VPC, subnets, internet gateway, route tables
+- ✅ Security groups
+- ✅ S3 buckets (dvc-data, mlflow-artifacts)
+- ✅ ECR repository
+
+**Possible workarounds:**
+
+1. **Manual EC2 creation via AWS Console:**
+   - Sometimes AWS Academy allows manual EC2 creation via console even when API denies it
+   - Navigate to EC2 console → Launch Instance
+   - Use same specs as Terraform: t3.large, Amazon Linux 2023, 100GB gp3
+   - If successful, import to Terraform state: `terraform import module.ec2.aws_instance.k3s i-xxxxx`
+
+2. **Request different AWS Academy lab:**
+   - Some lab environments have different IAM policies
+   - Try "AWS Academy Learner Lab" vs "AWS Academy Cloud Foundations"
+   - Check with instructor if dedicated sandbox is available
+
+3. **Use personal AWS account:**
+   - Free Tier covers t3.xlarge for limited hours/month
+   - Requires moving GitHub Actions secrets to personal account credentials
+   - Cost: ~$125/month for 24/7 operation (can stop/start to reduce to ~$40/month)
+
+4. **Alternative cloud provider:**
+   - Deploy to GCP (Compute Engine), Azure (VM), or DigitalOcean (Droplets)
+   - Requires rewriting Terraform modules for new provider
+   - Significant effort but removes AWS Academy restrictions
+
+5. **Use existing EC2 instance from previous session:**
+   - If an instance was created in a previous lab session before this restriction
+   - Check: `aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,State.Name,Tags[?Key==\`Name\`].Value|[0]]' --output table`
+   - If found, import to Terraform state
+
+**Current status:**
+- Infrastructure deployment BLOCKED
+- Need to verify if manual console creation works
+- If not, project requires different AWS environment or cloud provider
+
+**References:**
+- [AWS IAM Policy Evaluation Logic](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html)
+- [Terraform Import](https://www.terraform.io/cli/import)
+- Related: Previous successful deployments (2026-02-07) documented in MEMORY.md
+
+**Date discovered:** 2026-02-10
 
 ---
 
