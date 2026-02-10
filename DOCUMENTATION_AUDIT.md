@@ -79,9 +79,12 @@ This document lists all documentation inconsistencies found and their fixes.
 **This is the heart of the project** (Simplified Pipeline - 2026-02-10):
 
 ```
-USER uploads data → PRE-PUSH HOOK (merges with S3 data)
-                           → DATA QA → [FAIL: error message]
-                           → [PASS: create data/TIMESTAMP branch → PR]
+USER uploads data → PRE-PUSH HOOK (creates data/TIMESTAMP branch, NO AWS!)
+                           ↓
+                  GITHUB ACTIONS: DATA MERGING & QA
+                           → Downloads S3 data + merges + validates
+                           → [FAIL: error comment]
+                           → [PASS: create PR with merged dataset]
                                     ↓
                               TRAINING (single run on full dataset)
                                     ↓

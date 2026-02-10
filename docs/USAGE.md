@@ -31,42 +31,51 @@ cat report.json
 
 ---
 
-### Step 2: Create Branch and Push Data
+### Step 2: Commit and Push Data (Pre-push Hook Handles Rest!)
 
 ```bash
-# Create timestamped branch manually
-git checkout -b data/$(date +%Y%m%d-%H%M%S)
+# Install pre-push hook (one-time setup)
+./devops/scripts/install-git-hooks.sh
 
 # Add and commit data
 git add WMS/data/training/
 git commit -m "data: add 5 new water meter images"
 
-# Push branch
-git push origin HEAD
+# Try to push to main - hook will intercept!
+git push origin main
 
-# Create PR manually on GitHub
-# Or let data-upload workflow create it
+# Hook automatically:
+# 1. Creates data/YYYYMMDD-HHMMSS branch
+# 2. Pushes your new files to that branch
+# 3. Blocks push to main
+# 4. GitHub Actions will merge with S3 data
+# 5. PR will be created automatically
+
+# ℹ️  No AWS credentials needed locally!
 ```
 
 ---
 
-### Step 3: Wait for Training (~10 minutes)
+### Step 3: Wait for Training (~10-15 minutes)
 
-The training workflow runs automatically on your PR:
+The automated pipeline runs:
 
 ```
-EC2 starts → Train (3 attempts) → Aggregate results → EC2 stops
+Data Merging (in GitHub Actions) → Data QA → PR Created → EC2 starts → Train ONCE → Quality Gate → EC2 stops
 ```
 
 **Monitor progress:**
-- Go to: https://github.com/YOUR_USERNAME/Water-Meters-Segmentation-Autimatization/pull/1
-- Check "Checks" tab
-- Wait for "Train Model" workflow to complete
+- Go to: https://github.com/YOUR_USERNAME/Water-Meters-Segmentation-Autimatization/actions
+- Check workflow logs for data merging and training
+- Wait for PR to be created with merged dataset
+- Training runs automatically on PR
 
-**Training runs in parallel:**
-- Attempt 1: Seed = (run_number × 100) + 1
-- Attempt 2: Seed = (run_number × 100) + 2
-- Attempt 3: Seed = (run_number × 100) + 3
+**What happens:**
+1. **Data Merging** (~1-3 min): Downloads S3 data + merges with your new data
+2. **Data QA** (~30 sec): Validates merged dataset
+3. **PR Created**: With complete merged dataset
+4. **Training** (~10-12 min): Single run on full dataset
+5. **Quality Gate**: Compares against Production baseline (dynamic)
 
 ---
 
@@ -76,27 +85,25 @@ The workflow posts a comment on your PR with:
 
 #### ✅ Success Example:
 ```
-## ✅ Training Results (3 attempts)
+## ✅ Training Results
 
 📈 MODEL IMPROVED
 
-### All Attempts
-| Attempt | Dice   | IoU    | Passed | Improved |
-|---------|--------|--------|--------|----------|
-| 1       | 0.9310 | 0.8890 | ✅     | 📈       |
-| 2 🏆    | 0.9350 | 0.8920 | ✅     | 📈       |
-| 3       | 0.9280 | 0.8870 | ✅     | -        |
+### Comparison vs Production Baseline
+| Metric | New Model | Production | Change  | Status |
+|--------|-----------|------------|---------|--------|
+| Dice   | 0.9350    | 0.9275     | +0.81%  | ✅     |
+| IoU    | 0.8920    | 0.8865     | +0.62%  | ✅     |
 
-### Best Result (Attempt 2)
-| Metric | Value  | Baseline | Threshold | Status |
-|--------|--------|----------|-----------|--------|
-| Dice   | 0.9350 | 0.9275   | 0.9075    | ✅     |
-| IoU    | 0.8920 | 0.8865   | 0.8665    | ✅     |
+### Training Details
+- Dataset: 49 images (merged: 25 existing + 24 new)
+- Training time: ~12 minutes
+- Baseline: Dynamically fetched from MLflow Production model
 
-🚀 Best model has been promoted to Production
+🚀 Model promoted to Production and PR auto-approved!
 ```
 
-**If model improved:** PR is auto-approved, ready to merge.
+**If model improved:** PR is auto-approved and auto-merged.
 
 #### ❌ Failure Example:
 ```

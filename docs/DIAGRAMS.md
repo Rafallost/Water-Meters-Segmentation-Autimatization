@@ -14,23 +14,26 @@ graph TB
         A[User: Add Training Data] --> B[Git Commit & Push]
     end
 
-    subgraph "Git Hooks"
+    subgraph "Git Hooks - NO AWS CREDENTIALS!"
         B --> C{Pre-push Hook}
-        C -->|Detects data changes| D[Create data/TIMESTAMP branch]
+        C -->|Detects NEW data| D[Create data/TIMESTAMP branch<br/>Push NEW files only]
         C -->|No data changes| E[Push to main]
     end
 
-    subgraph "GitHub Actions - Data QA"
-        D --> F[Trigger PR]
+    subgraph "GitHub Actions - Data Merging & QA"
+        D --> D1[Download existing data from S3]
+        D1 --> D2[Merge: existing + new = complete]
+        D2 --> D3[Update DVC tracking]
+        D3 --> F[Trigger PR with merged dataset]
         F --> G[Data Quality Check]
-        G -->|Failed| H[❌ Comment on PR]
-        G -->|Passed| I[✅ Approve QA]
+        G -->|Failed| H[❌ Comment on commit]
+        G -->|Passed| I[✅ Create PR]
     end
 
     subgraph "GitHub Actions - Training"
         I --> J[Start EC2 via Workflow]
         J --> K[Wait for k3s/MLflow]
-        K --> L[Train Model x3<br/>Different seeds]
+        K --> L[Train Model ONCE<br/>Single run on full dataset]
         L --> M[Log to MLflow]
     end
 
@@ -68,7 +71,7 @@ graph TB
 
 ## 2. Training Pipeline Details
 
-Focus on the 3-attempt training process with quality gates.
+Focus on the simplified single-run training process with dynamic quality gate.
 
 ```mermaid
 graph LR
@@ -79,42 +82,35 @@ graph LR
         D --> E[Wait for MLflow /health]
     end
 
-    subgraph "Train - Matrix Strategy"
-        E --> F1[Attempt 1<br/>seed=run*100+1]
-        E --> F2[Attempt 2<br/>seed=run*100+2]
-        E --> F3[Attempt 3<br/>seed=run*100+3]
+    subgraph "Single Training Run"
+        E --> F[Train Model Once<br/>On full merged dataset]
+        F --> G[Log to MLflow]
     end
 
-    subgraph "Log Results"
-        F1 --> G1[MLflow Run 1]
-        F2 --> G2[MLflow Run 2]
-        F3 --> G3[MLflow Run 3]
+    subgraph "Quality Gate"
+        G --> H[Fetch Production Baseline<br/>from MLflow dynamically]
+        H --> I{Compare Metrics}
+        I -->|Dice & IoU improved| J[Model Improved ✅]
+        I -->|No improvement| K[Not Improved ❌]
     end
 
-    subgraph "Aggregate Results"
-        G1 --> H[Download Artifacts]
-        G2 --> H
-        G3 --> H
-        H --> I[Parse JSON Results]
-        I --> J{Any Improved?}
-    end
-
-    subgraph "Promote Best Model"
-        J -->|Yes| K[Find Best by Dice]
-        K --> L[Register to MLflow]
+    subgraph "Promote Model"
+        J --> L[Register to MLflow]
         L --> M[Transition to Production]
         M --> N[Archive Old Production]
     end
 
     subgraph "PR Comment"
-        J --> O[Generate Results Table]
+        J --> O[Generate Results<br/>with comparison]
+        K --> O
         O --> P[Post to PR]
         P -->|Improved| Q[Auto-approve PR]
-        P -->|Not improved| R[Manual review needed]
+        P -->|Not improved| R[Block merge]
     end
 
     subgraph "Stop Infrastructure"
-        J --> S[EC2 Stop]
+        M --> S[EC2 Stop]
+        K --> S
     end
 
     style M fill:#d4edda,stroke:#2e7d32,color:#000
@@ -440,11 +436,12 @@ journey
         Commit changes: 5: User
         Push to GitHub: 5: User
     section Automated Training
-        Pre-push hook creates branch: 7: Git Hook
-        PR created automatically: 8: GitHub Actions
-        Data QA runs: 7: GitHub Actions
+        Pre-push hook creates branch (no AWS!): 9: Git Hook
+        GitHub Actions merges S3 data: 8: GitHub Actions
+        Data QA runs on merged dataset: 7: GitHub Actions
+        PR created with full dataset: 8: GitHub Actions
         EC2 starts: 8: GitHub Actions
-        Model trains 3x: 6: GitHub Actions
+        Model trains once: 8: GitHub Actions
         Results posted to PR: 8: GitHub Actions
     section Review & Merge
         Check PR comment: 5: User
