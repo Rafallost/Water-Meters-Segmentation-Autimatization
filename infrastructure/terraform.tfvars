@@ -8,9 +8,10 @@ availability_zone = "us-east-1a"
 # EC2 Configuration
 instance_type = "t3.large" # 8GB RAM, 2 vCPU - required for ML workloads
 
-# Your IP address for SSH access (get it from: curl ifconfig.me)
-# MUST end with /32
-my_ip = "46.112.70.5/32" # Example: "203.0.113.45/32"
+# Your IP address for SSH access - NOW AUTO-DETECTED!
+# No longer needed - automatically detected via https://api.ipify.org
+# See devops/terraform/modules/vpc/my_ip.tf for implementation
+# my_ip = "46.112.74.13/32" # Commented out - auto-detected now!
 
 # SSH key pair name (pre-created by AWS Academy Learner Lab)
 key_name = "vockey"
@@ -26,4 +27,4 @@ github_repo = "Rafallost/Water-Meters-Segmentation-Autimatization"
 # Requires t3.large or larger (you have t3.large - OK!)
 # Adds ~500MB RAM usage, ~2GB disk, +3 min startup time
 install_monitoring = true
-grafana_password   = "WMS-Monitoring-2026!"  # Change in production!
+grafana_password   = "WMS-Monitoring-2026!" # Change in production!
