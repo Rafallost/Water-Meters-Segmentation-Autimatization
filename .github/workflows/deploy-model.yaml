@@ -92,6 +92,10 @@ jobs:
 
           echo "✅ ECR imagePullSecret created/updated in default namespace"
 
+          # Force restart of any existing pods to pick up new secret
+          kubectl delete pods -l app=ml-model,release=wms-model -n default --ignore-not-found=true
+          echo "🔄 Deleted old pods to force restart with new credentials"
+
       - name: Deploy via Helm
         run: |
           helm upgrade --install wms-model devops/helm/ml-model/ \
