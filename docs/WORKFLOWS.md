@@ -2,59 +2,68 @@
 
 This document explains **all GitHub Actions workflows** in this project and when they run.
 
+**Last updated:** 2026-02-10 (Simplified Pipeline Implementation)
+
 ---
 
 ## 🎯 Overview: The Complete Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  USER UPLOADS NEW TRAINING DATA                             │
-│  (push to WMS/data/training/)                               │
+│  USER ADDS NEW TRAINING DATA (locally)                      │
+│  WMS/data/training/images/new_image.jpg                     │
+│  WMS/data/training/masks/new_mask.jpg                       │
+└────────────────┬────────────────────────────────────────────┘
+                 │
+                 ▼ (git commit + git push origin main)
+┌─────────────────────────────────────────────────────────────┐
+│  PRE-PUSH HOOK (local git hook)                             │
+│     • Downloads existing data from S3 via DVC               │
+│     • Merges: existing + new = complete dataset             │
+│     • Creates branch: data/YYYYMMDD-HHMMSS                  │
+│     • Pushes merged dataset to branch                       │
+│     • Blocks push to main                                   │
 └────────────────┬────────────────────────────────────────────┘
                  │
                  ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  1. DATA VALIDATION (data-qa.yaml)                          │
-│     • Checks image/mask pairs                               │
-│     • Validates resolutions                                 │
-│     • Ensures binary masks (0/255)                          │
-│     → PASS: Continue   → FAIL: Stop with error              │
-└────────────────┬────────────────────────────────────────────┘
-                 │
-                 ▼
-┌─────────────────────────────────────────────────────────────┐
-│  2. DATA UPLOAD (data-upload.yaml)                          │
-│     • Versions data with DVC → S3                           │
+│  1. DATA VALIDATION (training-data-pipeline.yaml)           │
+│     • Validates image/mask pairs                            │
+│     • Checks resolutions and binary masks                   │
 │     • Creates Pull Request to main                          │
-│     • Triggers training workflow                            │
+│     → PASS: PR created   → FAIL: Comment on commit          │
 └────────────────┬────────────────────────────────────────────┘
                  │
-                 ▼
+                 ▼ (PR triggers training)
 ┌─────────────────────────────────────────────────────────────┐
-│  3. TRAINING (train.yml) - 3 Attempts                       │
+│  2. TRAINING (train.yml) - SINGLE RUN                       │
+│     • Data QA validation                                    │
 │     • Starts EC2 infrastructure (ephemeral)                 │
-│     • Runs 3 training attempts with different seeds         │
+│     • Trains model ONCE on full merged dataset              │
 │     • Logs to MLflow                                        │
-│     • Compares to baseline (Dice ≥0.9075, IoU ≥0.8665)     │
-│     → IMPROVED: Promote to Production                       │
-│     → NOT IMPROVED: Reject PR                               │
-│     • Stops EC2 infrastructure                              │
+│     • Quality Gate: Compare vs Production baseline          │
+│       - Fetches baseline from MLflow dynamically            │
+│       - IMPROVED: Both Dice AND IoU > baseline              │
+│     → IMPROVED: Promote + Auto-approve + Auto-merge         │
+│     → NOT IMPROVED: Fail workflow, reject PR                │
+│     • Stops EC2 infrastructure (always)                     │
 └────────────────┬────────────────────────────────────────────┘
                  │
-                 ▼ (if model improved)
+                 ▼ (if model improved and PR merged)
 ┌─────────────────────────────────────────────────────────────┐
-│  4. MERGE TO MAIN                                           │
-│     • PR auto-approved by workflow                          │
-│     • User merges PR                                        │
+│  3. MAIN BRANCH UPDATED                                     │
+│     • New model promoted to Production in MLflow            │
+│     • model-metadata.json updated                           │
+│     • Training data (.dvc files) in main                    │
 └────────────────┬────────────────────────────────────────────┘
                  │
-                 ▼
+                 ▼ (manual deployment when needed)
 ┌─────────────────────────────────────────────────────────────┐
-│  5. DEPLOYMENT (automatic on merge to main)                 │
-│     • Build Docker image                                    │
-│     • Push to ECR                                           │
-│     • Deploy to k3s with Helm                               │
-│     • Run smoke tests                                       │
+│  4. DEPLOYMENT (manual via scripts)                         │
+│     • ./devops/scripts/deploy-to-cloud.sh                   │
+│     • Starts EC2, deploys app with Helm                     │
+│     • Access MLflow UI and model API                        │
+│     • ./devops/scripts/stop-cloud.sh when done              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -62,225 +71,359 @@ This document explains **all GitHub Actions workflows** in this project and when
 
 ## 📋 All Workflows Explained
 
-### 1. **Data Quality Assurance** (`data-qa.yaml`)
+### 1. **Pre-Push Hook** (`.git/hooks/pre-push`)
 
-**Purpose:** Quick validation check before expensive training
-**Triggers:** On pull request to main
-**Duration:** ~20-30 seconds
+**Type:** Local Git hook (not a GitHub Action)
+**Triggers:** When you run `git push origin main` with training data changes
+**Duration:** ~2-5 minutes (depends on S3 download size)
 
 **What it does:**
-- Checks that every image has a corresponding mask
-- Validates image and mask resolutions match
-- Ensures masks are binary (only 0 and 255 values)
-- Checks for sufficient mask coverage
+1. Detects raw image/mask files in `WMS/data/training/`
+2. Verifies AWS credentials are configured
+3. Downloads existing dataset from S3 using DVC (if `.dvc` files exist)
+4. Merges existing data + new data = complete dataset
+5. Creates timestamped branch: `data/YYYYMMDD-HHMMSS`
+6. Commits merged dataset to branch
+7. Pushes branch to GitHub
+8. **Blocks** push to main (exits with error)
 
-**Outcomes:**
-- ✅ PASS → Training can proceed
-- ❌ FAIL → PR blocked, shows errors
+**Example output:**
+```
+🔍 Checking for training data changes...
+📦 Raw training data detected - Starting merge process
 
-**Why you need it:** Prevents wasting 10+ minutes of training on bad data.
+Detected 2 new file(s):
+  WMS/data/training/images/id_49_image.jpg
+  WMS/data/training/masks/id_49_mask.png
+
+🔐 Verifying AWS credentials...
+✅ AWS credentials valid
+
+📥 Downloading existing dataset from S3...
+✅ Downloaded 48 existing images
+
+📦 Merging datasets...
+  • Existing images: 48
+  • New images: 2
+  • Total: 50 images
+
+🌿 Creating data branch: data/20260210-123456
+✅ Merged dataset ready: 50 images
+🚀 Pushing to remote branch: data/20260210-123456
+
+╔════════════════════════════════════════════════════════════╗
+║  ✅ SUCCESS - Data merged and pushed to branch             ║
+╚════════════════════════════════════════════════════════════╝
+
+What happened:
+  ✓ Downloaded 48 existing images from S3
+  ✓ Merged with 2 new images
+  ✓ Total dataset: 50 images
+  ✓ Pushed to branch: data/20260210-123456
+
+Next steps:
+  1. GitHub Actions will validate the merged dataset
+  2. Pull Request will be created automatically
+  3. Training pipeline will run on the full dataset
+  4. Quality gate compares new model vs baseline
+  5. If improved, PR auto-approved and merged
+```
+
+**Why this approach:**
+- ✅ Every training run uses **complete historical data** (not just new samples)
+- ✅ Automatic merging - user doesn't manually manage DVC
+- ✅ S3 is single source of truth for training data
+- ✅ Raw files never reach main branch
+
+**Prerequisites:**
+- DVC installed locally
+- AWS credentials configured (`~/.aws/credentials` or env vars)
+- Pre-push hook installed (run `./devops/scripts/install-git-hooks.sh`)
 
 ---
 
-### 2. **Data Upload & Validation** (`data-upload.yaml`)
+### 2. **Training Data Pipeline** (`training-data-pipeline.yaml`)
 
-**Purpose:** Version data and create PR automatically
-**Triggers:** When you push to `data/*` branches
-**Duration:** ~40-60 seconds
+**Purpose:** Validate data and create PR
+**Triggers:** When you push to `data/*` branches (created by pre-push hook)
+**Duration:** ~30-45 seconds
 
 **What it does:**
 1. Runs data QA validation
-2. If POC mode (data in Git): Commits data directly
-3. If production mode: Adds data to DVC, pushes to S3
-4. Creates a Pull Request to main branch
-5. Adds validation report as PR comment
+   - Checks image/mask pairs match
+   - Validates resolutions
+   - Ensures binary masks (0/255)
+2. Counts training data (images/masks)
+3. **If PASS:** Creates Pull Request to main with validation report
+4. **If FAIL:** Posts commit comment with errors
+
+**PR Description includes:**
+- Validation report (image count, resolution, coverage)
+- Dataset details (existing + new = total)
+- Quality gate rules
+- Next steps (training will run automatically)
 
 **Outcomes:**
 - ✅ PASS → PR created, training workflow triggered
-- ❌ FAIL → Commit comment with errors, no PR created
+- ❌ FAIL → Commit comment with errors, no PR
 
-**Why you need it:** Automates the PR creation process, you don't need to create PRs manually.
+**Why you need it:** Prevents wasting compute on invalid data.
 
 ---
 
 ### 3. **Train Model** (`train.yml`) ⭐ **MAIN WORKFLOW**
 
-**Purpose:** Train model with ephemeral infrastructure
-**Triggers:** On pull request to main (when data changes detected)
-**Duration:** ~10-12 minutes
+**Purpose:** Train model with ephemeral infrastructure and quality gate
+**Triggers:** On pull request to main (when training data changes detected)
+**Duration:** ~10-15 minutes (single run, time-optimized)
 
 **What it does:**
 
-#### Job 1: Start EC2 Infrastructure (`start-infra`)
-- Finds EC2 instance by tag
-- Starts the instance
-- Waits for MLflow to be healthy
-- Returns MLflow URL for training jobs
-- **Duration:** ~20-30 seconds
+#### Job 1: Data QA (`data-qa`)
+- Re-validates data on PR
+- Posts validation report as PR comment
+- **Duration:** ~20 seconds
 
-#### Jobs 2-4: Training Attempts (`train`, matrix: [1, 2, 3])
+#### Job 2: Start EC2 Infrastructure (`start-infra`)
+- Finds/starts EC2 instance via Terraform
+- Waits for MLflow to be healthy
+- Returns MLflow URL for training
+- **Duration:** ~30-60 seconds (if already running) or ~3-5 min (cold start)
+
+#### Job 3: Training (`train`)
+- **Single training run** (not 3 attempts - faster!)
 - Runs on GitHub-hosted runners (free!)
-- Each uses a different random seed
+- Downloads training data from branch (already merged)
 - Connects to MLflow on EC2
 - Trains U-Net model
 - Logs metrics to MLflow
-- **Duration:** ~3 minutes each (parallel)
+- **Duration:** ~10-12 minutes
 
-#### Job 5: Aggregate Results (`aggregate-results`)
-- Collects metrics from all 3 attempts
-- Finds best result (highest Dice score)
-- Checks quality gate:
-  - **Baseline:** Dice 0.9275, IoU 0.8865
-  - **Threshold:** Dice ≥0.9075, IoU ≥0.8665 (2% tolerance)
-- If ANY attempt improved: Promotes to MLflow Production
-- Posts results table as PR comment
+#### Job 4: Quality Gate (`train` job, `quality_gate` step)
+- Fetches **dynamic baseline** from MLflow Production model
+  - If no Production model: baseline = 0 (first training always passes)
+  - If Production model exists: baseline = its Dice & IoU metrics
+- Compares new model vs baseline:
+  - **IMPROVED:** `new_dice > baseline_dice` **AND** `new_iou > baseline_iou`
+  - **NOT IMPROVED:** Either metric is worse or equal
+- **Duration:** ~5 seconds
+
+#### Job 5: Model Promotion (if improved)
+- Creates new model version in MLflow Model Registry
+- Transitions to Production stage
+- Archives old Production models
+- Updates `model-metadata.json` in Git
 - **Duration:** ~10 seconds
 
-#### Job 6: Stop EC2 Infrastructure (`stop-infra`)
+#### Job 6: Auto-Approve & Comment
+- Posts PR comment with training results (table with metrics)
+- If improved: Auto-approves PR
+- If not improved: PR remains unapproved, workflow fails
+- **Duration:** ~5 seconds
+
+#### Job 7: Stop EC2 Infrastructure (`stop-infra`)
 - Stops EC2 instance to save costs
-- Runs even if training failed
+- **Always runs** (even if training failed)
 - **Duration:** ~10 seconds
 
+#### Job 8: Auto-Merge (if improved)
+- Enables auto-merge on PR (squash merge)
+- Deletes branch after merge
+- **Duration:** ~5 seconds
+
 **Outcomes:**
-- 📈 **IMPROVED:** Model promoted, PR auto-approved, ready to merge
-- 📊 **NO IMPROVEMENT:** PR rejected with explanation
+- 📈 **IMPROVED:** Model promoted to Production, PR auto-approved and auto-merged
+- 📊 **NO IMPROVEMENT:** Workflow fails, PR blocked, detailed comment explains why
 
-**Why you need it:** Core training pipeline with cost optimization (EC2 only runs during training).
+**Key differences from old pipeline:**
+- ❌ OLD: 3 training attempts (30-45 minutes)
+- ✅ NEW: 1 training attempt (10-15 minutes) → **66% faster**
+- ❌ OLD: Hardcoded baseline (Dice 0.9275)
+- ✅ NEW: Dynamic baseline from MLflow Production model
+- ❌ OLD: Complex aggregation logic
+- ✅ NEW: Simple comparison: new > baseline
 
-**Cost savings:** ~$14/month (EC2 runs ~10 min/training instead of 24/7)
+**Cost savings:** EC2 runs ~10-15 min/training instead of 30-45 min
 
 ---
 
-### 4. **CI Pipeline** (`ci.yaml`)
-
-**Purpose:** Code quality checks
-**Triggers:** On every pull request and push to main
-**Duration:** ~2-3 minutes
-
-**What it does:**
-- Lints Python code (Ruff)
-- Runs unit tests (pytest)
-- Checks code formatting
-
-**Outcomes:**
-- ✅ PASS → Code quality OK
-- ❌ FAIL → Fix linting/test errors before merging
-
-**Why you need it:** Prevents broken code from reaching main branch.
-
----
-
-### 5. **EC2 Control** (`ec2-control.yaml`)
+### 4. **EC2 Control** (`ec2-control.yaml`)
 
 **Purpose:** Reusable workflow for starting/stopping EC2
 **Triggers:** Called by other workflows (not directly)
-**Duration:** 20-30 seconds
+**Duration:** ~30 seconds (start) or ~10 seconds (stop)
 
 **What it does:**
-- **START:** Starts EC2, waits for MLflow health check, returns URL
-- **STOP:** Stops EC2 instance
+- `action: start` → Terraform apply, wait for MLflow health
+- `action: stop` → Terraform destroy
 
-**Why you need it:** Centralizes EC2 management, used by train.yml.
+**Used by:**
+- `train.yml` (start before training, stop after)
+- Manual deployment scripts
 
 ---
 
-## 🎬 Typical Workflow Execution Order
+### 5. **Manual EC2 Control** (`ec2-manual-control.yaml`)
 
-### Scenario: You have new training data
+**Purpose:** Manual EC2 start/stop for debugging
+**Triggers:** Manual dispatch from GitHub Actions UI
+**Duration:** ~3-5 minutes
 
-```
-1. You: git checkout -b data/$(date +%Y%m%d-%H%M%S)
-   You: git push origin HEAD
-   ↓
-2. data-upload.yaml runs:
-   - Validates data (Data QA) ✅
-   - Creates PR #5
-   ↓
-3. train.yml runs on PR #5:
-   - start-infra: EC2 starts
-   - train (1,2,3): 3 parallel training jobs
-   - aggregate-results: Best model promoted ✅
-   - stop-infra: EC2 stops
-   - Comment on PR: "📈 MODEL IMPROVED"
-   - Auto-approve PR
-   - Auto-merge (if improved)
-   ↓
-4. release-deploy.yaml (after merge):
-   - Build Docker image
-   - Push to ECR
-   - Deploy to k3s via Helm
+**Usage:**
+```bash
+# Start EC2
+gh workflow run ec2-manual-control.yaml -f action=start
+
+# Stop EC2
+gh workflow run ec2-manual-control.yaml -f action=stop
 ```
 
----
-
-## 🚨 Common Failure Scenarios
-
-### ❌ Data QA Failed
-**Workflow:** data-qa.yaml
-**Error:** "Non-binary mask values" or "Resolution mismatch"
-**Fix:** Run `python devops/scripts/data-qa.py WMS/data/training/` locally to see errors. Fix data and push again.
-
-### ❌ Training Failed (All 3 Attempts)
-**Workflow:** train.yml
-**Error:** "No training attempt improved the model"
-**Reason:** New data didn't improve model performance
-**Fix:** Review training logs, check if data is sufficient/correct, or adjust hyperparameters.
-
-### ❌ EC2 Connection Timeout
-**Workflow:** train.yml (start-infra)
-**Error:** "MLflow health check timeout"
-**Reason:** EC2 instance not starting or port 5000 blocked
-**Fix:** Check AWS Console, verify security group allows port 5000.
-
-### ❌ PR Comment Failed (403)
-**Workflow:** train.yml
-**Error:** "Resource not accessible by integration"
-**Reason:** Missing permissions
-**Fix:** Already fixed! (Added `permissions: issues: write` to train.yml)
+**Why you need it:** For debugging, manual model downloads, or testing deployment without training.
 
 ---
 
-## 🔄 Workflow Dependencies
+### 6. **CI Pipeline** (`ci.yaml`)
 
+**Purpose:** Run tests on code changes
+**Triggers:** On push to main or pull requests (code changes only)
+**Duration:** ~1-2 minutes
+
+**What it does:**
+- Linting (flake8, ruff)
+- Unit tests (pytest)
+- Code quality checks
+
+**Why you need it:** Ensures code quality before merge.
+
+---
+
+### 7. **Release & Deploy** (`release-deploy.yaml`)
+
+**Purpose:** (Optional) Automated deployment on release
+**Triggers:** On release publish or manual dispatch
+**Duration:** ~5-10 minutes
+
+**What it does:**
+- Build Docker image
+- Push to ECR
+- Deploy to k3s with Helm
+- Run smoke tests
+
+**Note:** This is optional. The primary deployment method is the manual scripts (`deploy-to-cloud.sh`).
+
+---
+
+## 🚀 Manual Deployment Scripts
+
+### `devops/scripts/deploy-to-cloud.sh`
+
+**Purpose:** Deploy application to AWS EC2 for demos/testing
+**Usage:**
+```bash
+./devops/scripts/deploy-to-cloud.sh
 ```
-User creates branch: data/TIMESTAMP
-        ↓
-data-upload.yaml (validates + creates PR)
-        ↓ triggers on PR
-train.yml (main training pipeline)
-        ↓ uses
-ec2-control.yaml (infrastructure management)
+
+**What it does:**
+1. Checks Terraform and AWS credentials
+2. Runs `terraform apply` to start EC2
+3. Waits for MLflow server to be ready
+4. (Optional) Deploys app with Helm to k3s
+5. Provides access URLs
+
+**Access after deployment:**
+- MLflow UI: `http://<EC2_IP>:5000`
+- Model API: `http://<EC2_IP>:8000` (if Helm deployed)
+- API Docs: `http://<EC2_IP>:8000/docs`
+
+**Duration:** ~3-5 minutes
+
+### `devops/scripts/stop-cloud.sh`
+
+**Purpose:** Stop infrastructure to save costs
+**Usage:**
+```bash
+./devops/scripts/stop-cloud.sh
 ```
 
-**ci.yaml** runs independently on all PRs.
+**What it does:**
+1. Runs `terraform destroy`
+2. Stops billing
+
+**⚠️ IMPORTANT:** Always run this when done testing! Costs ~$0.10/hour when running.
 
 ---
 
-## ⚙️ Merge Conditions
+## 📊 Typical User Workflow
 
-A PR can be merged when:
+### Scenario: Add new training data
 
-1. ✅ **Data QA passed** (data-qa.yaml)
-2. ✅ **CI tests passed** (ci.yaml)
-3. ✅ **Training improved model** (train.yml shows "📈 MODEL IMPROVED")
-4. ✅ **PR auto-approved** by training workflow (optional, can merge manually)
+```bash
+# 1. Add new images locally
+cp /path/to/new/*.jpg WMS/data/training/images/
+cp /path/to/new/*.png WMS/data/training/masks/
 
-**You decide when to merge** - the workflow won't auto-merge, just auto-approve if model improved.
+# 2. Commit and push (pre-push hook intercepts)
+git add WMS/data/training/
+git commit -m "data: add 5 new water meter images"
+git push origin main
+# ↓ Hook merges with S3 data, creates data/YYYYMMDD-HHMMSS branch
+
+# 3. Check GitHub Actions for progress
+# - training-data-pipeline.yaml validates → creates PR
+# - train.yml runs training → quality gate → auto-approve if improved
+
+# 4. If improved: PR auto-merges, model promoted to Production
+
+# 5. (Optional) Deploy to test the new model
+./devops/scripts/deploy-to-cloud.sh
+# ... test the application ...
+./devops/scripts/stop-cloud.sh
+```
+
+**Time:** ~10-15 minutes from push to merged (if model improves)
 
 ---
 
-## 💡 Tips
+## 🔧 Troubleshooting Workflows
 
-- **Don't merge until you see training results comment!** Wait for train.yml to finish (~10 min)
-- **Check MLflow:** http://<EC2-IP>:5000 to see all training runs and metrics
-- **Costs:** EC2 only runs during training (~$4/month instead of ~$18/month)
-- **Manual trigger:** You can manually trigger train.yml from Actions tab (workflow_dispatch)
+### Training fails with "No training data found"
+
+**Cause:** Data wasn't properly merged/pushed by pre-push hook
+
+**Fix:**
+1. Check that pre-push hook is installed: `ls -la .git/hooks/pre-push`
+2. Check AWS credentials: `aws sts get-caller-identity`
+3. Re-run: `git push origin main`
+
+### Quality gate fails: "Model did not improve"
+
+**Cause:** New model metrics ≤ Production baseline
+
+**Fix:**
+1. Check PR comment for exact metrics comparison
+2. Options:
+   - Add more/better training data
+   - Adjust hyperparameters in `WMS/configs/train.yaml`
+   - Close PR and try again with different data
+
+### EC2 doesn't stop after training
+
+**Cause:** Workflow failed before `stop-infra` job
+
+**Fix:**
+1. Manually stop: `gh workflow run ec2-manual-control.yaml -f action=stop`
+2. Or run: `./devops/scripts/stop-cloud.sh`
 
 ---
 
-## 📚 Related Documentation
+## 📖 Related Documentation
 
-- **SETUP.md** - How to set up the infrastructure
-- **USAGE.md** - Step-by-step guide for uploading data
-- **ARCHITECTURE.md** - System design overview
-- **devops/PLAN.md** - Original implementation plan
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System design and diagrams
+- **[USAGE.md](USAGE.md)** - Complete usage guide
+- **[KNOWN_ISSUES.md](../KNOWN_ISSUES.md)** - Known issues and workarounds
+- **[IMPLEMENTATION_SUMMARY.md](../IMPLEMENTATION_SUMMARY.md)** - Simplified pipeline details
+
+---
+
+**Last updated:** 2026-02-10
+**Pipeline version:** Simplified (single run, data merging, dynamic baseline)

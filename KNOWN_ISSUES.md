@@ -9,10 +9,10 @@ This document tracks known issues and their workarounds.
 **Status:** Known limitation, workaround available
 
 **Issue:**
-When the `data-upload.yaml` workflow creates a PR using `github-actions[bot]`, the `train.yml` workflow doesn't automatically run on that PR. This is a GitHub security feature to prevent infinite workflow loops.
+When the `training-data-pipeline.yaml` workflow creates a PR using `github-actions[bot]`, the `train.yml` workflow doesn't automatically run on that PR. This is a GitHub security feature to prevent infinite workflow loops.
 
 **Affected workflows:**
-- `data-upload.yaml` creates PR → `train.yml` should run but doesn't
+- `training-data-pipeline.yaml` creates PR → `train.yml` should run but doesn't
 
 **Impact:**
 - Users must manually trigger training after uploading data via `data/**` branches
@@ -29,7 +29,7 @@ When the `data-upload.yaml` workflow creates a PR using `github-actions[bot]`, t
 3. This triggers `train.yml` because the commit is from a user, not a bot
 
 **Proper fix (TODO):**
-Modify `data-upload.yaml` to use a Personal Access Token (PAT) instead of `GITHUB_TOKEN` when creating PRs:
+Modify `training-data-pipeline.yaml` to use a Personal Access Token (PAT) instead of `GITHUB_TOKEN` when creating PRs:
 
 1. Create PAT in GitHub Settings → Developer settings → Personal access tokens
    - Permissions: `Contents: Read/Write`, `Pull requests: Read/Write`, `Workflows: Read/Write`
@@ -37,7 +37,7 @@ Modify `data-upload.yaml` to use a Personal Access Token (PAT) instead of `GITHU
 
 2. Add to GitHub Secrets: `GH_PAT`
 
-3. Update `.github/workflows/data-upload.yaml` line ~101:
+3. Update `.github/workflows/training-data-pipeline.yaml`:
    ```yaml
    - name: Create or Update Pull Request
      uses: actions/github-script@v7
@@ -57,10 +57,10 @@ Modify `data-upload.yaml` to use a Personal Access Token (PAT) instead of `GITHU
 
 ## MLflow 503 errors during parallel training attempts
 
-**Status:** Fixed with workaround
+**Status:** ✅ RESOLVED (simplified pipeline with single training run)
 
-**Issue:**
-When running multiple training attempts in parallel or sequentially without delays, MLflow server returns `503 Service Unavailable` errors. This happens because:
+**Historical Issue (No longer applicable):**
+When running multiple training attempts in parallel or sequentially without delays, MLflow server returns `503 Service Unavailable` errors. This happened because:
 
 1. SQLite backend cannot handle concurrent write operations effectively
 2. First training attempt saturates MLflow server with metric logging
@@ -145,6 +145,17 @@ sudo lsof /path/to/mlruns.db
 - Related workflow runs: [Run #21792671320](https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization/actions/runs/21792671320)
 
 **Date discovered:** 2026-02-08
+**Date resolved:** 2026-02-10
+
+**Resolution:**
+The simplified training pipeline (implemented 2026-02-10) uses a **single training run** instead of 3 attempts, completely eliminating this issue. The new approach:
+- Trains model once on the full merged dataset
+- No concurrent/sequential MLflow operations
+- No recovery delays needed
+- Faster overall (10-15 min vs 30-45 min)
+- Dynamic quality gate compares against Production baseline
+
+This issue is kept for historical reference only.
 
 ---
 
@@ -332,22 +343,22 @@ git commit --allow-empty -m "test 3" && git push
 
 ## Training Workflow: Git Push Conflict When Remote Branch Diverges
 
-**Status:** Fixed
+**Status:** Fixed (current implementation uses model-metadata.json)
 
 **Issue:**
 Training workflow fails on the final git push step when the remote branch has new commits that were pushed during training. This happens because:
 
 1. Workflow checks out branch at start (e.g., commit A)
-2. Training runs for 45+ minutes
+2. Training runs for 10-15 minutes (simplified pipeline)
 3. Developer pushes new commits during training (e.g., commit B)
-4. Workflow tries to push metrics update from commit A → rejected (remote is now at commit B)
+4. Workflow tries to push metadata update from commit A → rejected (remote is now at commit B)
 
 **Symptoms:**
 ```
-[detached HEAD 61c0a95] chore: update Production model metrics (v3)
- 2 files changed, 32 insertions(+), 8 deletions(-)
+[detached HEAD 61c0a95] chore: update model metadata
+ 1 file changed, 10 insertions(+), 5 deletions(-)
 To https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization
- ! [rejected]        HEAD -> data/training-20260208 (fetch first)
+ ! [rejected]        HEAD -> data/training-20260210 (fetch first)
 error: failed to push some refs
 hint: Updates were rejected because the remote contains work that you do not
 hint: have locally.
@@ -355,62 +366,50 @@ Error: Process completed with exit code 1.
 ```
 
 **Root cause:**
-- Long-running training job (40-50 minutes)
+- Training job runs for 10-15 minutes
 - No synchronization between workflow start and end
 - Direct `git push` without checking for remote updates
-- Metrics commit is created from stale branch HEAD
+- Metadata commit is created from stale branch HEAD
 
 **Impact:**
-- Training succeeds, but metrics update fails
-- Production model tracking files not updated
-- Workflow marked as failed even though training worked
-- Manual intervention required to push metrics
+- Training succeeds, but metadata update fails (or requires manual resolution)
+- `model-metadata.json` not updated
+- Workflow may be marked as failed even though training worked
 
 **Fix:**
-Modified `.github/workflows/train.yml` to fetch and sync with remote before pushing:
+Current implementation in `.github/workflows/train.yml` includes a fallback message for push failures:
 
 ```yaml
-- name: Commit Production metrics to repo
-  if: steps.aggregate.outputs.any_improved == 'true'
+- name: Update model metadata in Git
+  if: steps.quality_gate.outputs.improved == 'true'
   run: |
-    BRANCH="${{ github.head_ref || github.ref_name }}"
+    # ... metadata update code ...
 
-    git config user.name "github-actions[bot]"
-    git config user.email "github-actions[bot]@users.noreply.github.com"
-
-    # Fetch latest changes from remote
-    git fetch origin "$BRANCH"
-
-    # Stash our metrics changes
-    git add WMS/models/production_current.json WMS/models/production_history.jsonl
-    git diff --cached --quiet && echo "No changes to commit" && exit 0
-    git stash push -m "metrics update"
-
-    # Switch to latest version of branch
-    git checkout "$BRANCH"
-    git pull origin "$BRANCH"
-
-    # Re-apply our metrics changes
-    git stash pop
-
-    # Commit and push
-    git add WMS/models/production_current.json WMS/models/production_history.jsonl
-    git commit -m "chore: update Production model metrics (v${{ steps.aggregate.outputs.best_attempt }})"
-    git push origin "$BRANCH"
+    git add model-metadata.json
+    git commit -m "chore: update model metadata [skip ci]" || echo "No changes to commit"
+    git push origin ${{ github.head_ref }} || echo "Could not push (PR may be closed)"
 ```
 
-**How it works:**
-1. **Fetch** latest remote changes
-2. **Stash** our metrics file updates
-3. **Checkout** and pull the latest branch version
-4. **Pop** stash to re-apply metrics updates on top of latest code
-5. **Commit** and push (now in sync with remote)
+**Current solution:**
+- Push failures are logged but don't fail the workflow
+- Metadata is less critical than model promotion (which happens in MLflow)
+- If metadata push fails, it can be manually updated or corrected in next PR
 
-**Why stash instead of rebase:**
-- Metrics files (`production_current.json`, `production_history.jsonl`) are independent
-- No code conflicts possible - only data files updated
-- Stash + pop is simpler than rebase conflict resolution
-- Idempotent operation - can safely re-apply on any commit
+**Better solution (TODO):**
+Add fetch/sync logic similar to the stash approach:
+```yaml
+git fetch origin "$BRANCH"
+git pull --rebase origin "$BRANCH"
+git add model-metadata.json
+git commit -m "chore: update model metadata [skip ci]"
+git push origin "$BRANCH"
+```
+
+**Why this is less critical now:**
+- Simplified pipeline is faster (10-15 min vs 40-50 min)
+- Smaller window for conflicts
+- `model-metadata.json` is informational (MLflow is source of truth)
+- Workflow doesn't fail if push fails
 
 **Edge cases handled:**
 - **No changes**: Exit early if metrics files unchanged (e.g., all attempts failed)
