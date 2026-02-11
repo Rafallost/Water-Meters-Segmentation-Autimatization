@@ -268,43 +268,64 @@ jobs:
 
       - name: Create Pull Request
         if: steps.qa.outputs.validation_passed == 'true'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: ${{ github.ref_name }}
-          base: main
-          title: "data: add ${{ steps.count_new.outputs.new_images }} new training images (total: ${{ steps.merge.outputs.total_images }})"
-          body: |
-            ## 📊 Training Data Update
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if PR already exists
+          EXISTING_PR=$(gh pr list --head ${{ github.ref_name }} --base main --json number --jq '.[0].number' || echo "")
 
-            **Merged Dataset Summary:**
-            - Existing images from S3: ${{ steps.download.outputs.existing_images }}
-            - New images in this PR: ${{ steps.count_new.outputs.new_images }}
-            - **Total dataset size: ${{ steps.merge.outputs.total_images }} images**
+          if [ -n "$EXISTING_PR" ]; then
+            echo "ℹ️  PR #$EXISTING_PR already exists for branch ${{ github.ref_name }}"
+            echo "pr_number=$EXISTING_PR" >> $GITHUB_OUTPUT
+          else
+            echo "📝 Creating new Pull Request..."
 
-            ## ✅ Data Quality Validation
+            # Create PR body
+            PR_BODY=$(cat <<'EOF'
+          ## 📊 Training Data Update
 
-            - [x] Image/mask pairs validated
-            - [x] Image resolutions checked (512x512)
-            - [x] Binary masks validated (0/255)
-            - [x] File format checks passed
+          **Merged Dataset Summary:**
+          - Existing images from S3: ${{ steps.download.outputs.existing_images }}
+          - New images in this PR: ${{ steps.count_new.outputs.new_images }}
+          - **Total dataset size: ${{ steps.merge.outputs.total_images }} images**
 
-            ## 🚀 Next Steps
+          ## ✅ Data Quality Validation
 
-            The training pipeline will:
-            1. Train U-Net model on merged dataset (${{ steps.merge.outputs.total_images }} images)
-            2. Compare metrics (Dice, IoU) against Production baseline
-            3. If improved: promote to Production and auto-merge
-            4. If not improved: block merge with detailed metrics
+          - [x] Image/mask pairs validated
+          - [x] Image resolutions checked (512x512)
+          - [x] Binary masks validated (0/255)
+          - [x] File format checks passed
 
-            ## 📋 Quality Gate Rules
+          ## 🚀 Next Steps
 
-            For this PR to be merged, the trained model must:
-            - Dice coefficient ≥ Production baseline (dynamic)
-            - IoU ≥ Production baseline (dynamic)
+          The training pipeline will:
+          1. Train U-Net model on merged dataset (${{ steps.merge.outputs.total_images }} images)
+          2. Compare metrics (Dice, IoU) against Production baseline
+          3. If improved: promote to Production and auto-merge
+          4. If not improved: block merge with detailed metrics
 
-            ---
-            🤖 *Merged by GitHub Actions - data pipeline*
+          ## 📋 Quality Gate Rules
+
+          For this PR to be merged, the trained model must:
+          - Dice coefficient ≥ Production baseline (dynamic)
+          - IoU ≥ Production baseline (dynamic)
+
+          ---
+          🤖 *Merged by GitHub Actions - data pipeline*
+          EOF
+          )
+
+            # Create PR using gh CLI
+            PR_URL=$(gh pr create \
+              --title "data: add ${{ steps.count_new.outputs.new_images }} new training images (total: ${{ steps.merge.outputs.total_images }})" \
+              --body "$PR_BODY" \
+              --base main \
+              --head ${{ github.ref_name }})
+
+            PR_NUMBER=$(echo "$PR_URL" | grep -oP '(?<=pull/)\d+')
+            echo "✅ Created PR #$PR_NUMBER: $PR_URL"
+            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          fi
           labels: |
             data-update
             auto-train
