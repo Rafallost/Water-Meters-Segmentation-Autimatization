@@ -100,7 +100,7 @@ jobs:
 
       - name: Validate Production Model Exists
         env:
-          MLFLOW_TRACKING_URI: http://10.0.1.10:5000
+          MLFLOW_TRACKING_URI: http://localhost:5000
         run: |
           python3 << 'EOF'
           import os
