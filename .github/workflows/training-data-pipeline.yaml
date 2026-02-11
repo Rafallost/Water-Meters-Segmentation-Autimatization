@@ -162,7 +162,7 @@ jobs:
 
           # Commit removal if there are staged changes
           if ! git diff --staged --quiet 2>/dev/null; then
-            git commit -m "chore: stop tracking training data in Git (moving to DVC) [skip ci]"
+            git commit -m "chore: stop tracking training data in Git (moving to DVC)"
             git push origin ${{ github.ref_name }}
             echo "✅ Removed from Git tracking and committed"
           else
@@ -234,9 +234,7 @@ jobs:
                        -m "" \
                        -m "Files tracked by DVC:" \
                        -m "- WMS/data/training/images.dvc" \
-                       -m "- WMS/data/training/masks.dvc" \
-                       -m "" \
-                       -m "[skip ci]"
+                       -m "- WMS/data/training/masks.dvc"
 
             git push origin ${{ github.ref_name }}
             echo "✅ DVC metadata committed and pushed"
