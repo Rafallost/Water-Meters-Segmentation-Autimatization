@@ -106,28 +106,44 @@ jobs:
           import os
           import sys
           import mlflow
+          from mlflow.tracking import MlflowClient
 
           mlflow_uri = os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000")
           mlflow.set_tracking_uri(mlflow_uri)
+          client = MlflowClient()
+          model_name = "water-meter-segmentation"
 
           try:
-              from mlflow.tracking import MlflowClient
-              client = MlflowClient()
+              # First, check if model is registered at all
+              try:
+                  registered_model = client.get_registered_model(model_name)
+              except mlflow.exceptions.RestException as e:
+                  if "RESOURCE_DOES_NOT_EXIST" in str(e):
+                      print("❌ FATAL: Model not registered in MLflow")
+                      print(f"   Model name: {model_name}")
+                      print(f"   MLflow URI: {mlflow_uri}")
+                      print("")
+                      print("Cannot deploy - train a model first:")
+                      print("  1. Push training data to trigger train.yml workflow")
+                      print("  2. Wait for training to complete")
+                      print("  3. Verify model registered in MLflow")
+                      print("  4. Then retry deployment")
+                      sys.exit(1)
+                  else:
+                      raise
 
-              # Check for Production model
-              model_name = "water-meter-segmentation"
+              # Model exists, now check for Production stage
+              # Note: get_latest_versions is deprecated but still works
               versions = client.get_latest_versions(model_name, stages=["Production"])
 
               if not versions:
                   print("❌ FATAL: No Production model found in MLflow")
                   print(f"   Model name: {model_name}")
+                  print(f"   Registered versions: {len(registered_model.latest_versions)}")
                   print(f"   MLflow URI: {mlflow_uri}")
                   print("")
-                  print("Cannot deploy - train a model first:")
-                  print("  1. Push training data to trigger train.yml workflow")
-                  print("  2. Wait for training to complete")
-                  print("  3. Verify model registered in MLflow")
-                  print("  4. Then retry deployment")
+                  print("Model is registered but no version in Production stage.")
+                  print("Train and promote a model first.")
                   sys.exit(1)
 
               model = versions[0]
