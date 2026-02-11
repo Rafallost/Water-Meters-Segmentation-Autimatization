@@ -6,52 +6,57 @@ This document tracks known issues and their workarounds.
 
 ## GitHub Actions: Bot-created PRs don't trigger training workflow
 
-**Status:** Known limitation, workaround available
+**Status:** ✅ RESOLVED (architecture redesigned)
 
-**Issue:**
-When the `training-data-pipeline.yaml` workflow creates a PR using `github-actions[bot]`, the `train.yml` workflow doesn't automatically run on that PR. This is a GitHub security feature to prevent infinite workflow loops.
+**Historical Issue:**
+When the `training-data-pipeline.yaml` workflow created a PR using `github-actions[bot]`, the `train.yml` workflow didn't automatically run on that PR. This was a GitHub security feature to prevent infinite workflow loops.
 
 **Affected workflows:**
-- `training-data-pipeline.yaml` creates PR → `train.yml` should run but doesn't
+- OLD: `training-data-pipeline.yaml` creates PR → `train.yml` should run but doesn't
 
-**Impact:**
-- Users must manually trigger training after uploading data via `data/**` branches
-- Training doesn't start automatically on bot-created PRs
+**Impact (historical):**
+- Users had to manually trigger training after uploading data via `data/**` branches
+- Training didn't start automatically on bot-created PRs
+- Required workaround: push empty commit to trigger workflow
 
-**Current workaround:**
-1. After PR is created, checkout the PR branch locally
-2. Push an empty commit as yourself (not bot):
-   ```bash
-   git checkout <pr-branch>
-   git commit --allow-empty -m "ci: trigger training workflow"
-   git push
+**Resolution (2026-02-11):**
+**Redesigned workflow architecture** - training now happens BEFORE PR creation in a single unified workflow:
+
+1. **OLD architecture (broken):**
    ```
-3. This triggers `train.yml` because the commit is from a user, not a bot
-
-**Proper fix (TODO):**
-Modify `training-data-pipeline.yaml` to use a Personal Access Token (PAT) instead of `GITHUB_TOKEN` when creating PRs:
-
-1. Create PAT in GitHub Settings → Developer settings → Personal access tokens
-   - Permissions: `Contents: Read/Write`, `Pull requests: Read/Write`, `Workflows: Read/Write`
-   - Expiration: 90 days minimum (or longer for production)
-
-2. Add to GitHub Secrets: `GH_PAT`
-
-3. Update `.github/workflows/training-data-pipeline.yaml`:
-   ```yaml
-   - name: Create or Update Pull Request
-     uses: actions/github-script@v7
-     with:
-       github-token: ${{ secrets.GH_PAT }}  # ← Add this line
-       script: |
-         # ... rest unchanged
+   training-data-pipeline.yaml → creates PR → train.yml (never triggers - bot limitation)
    ```
+
+2. **NEW architecture (fixed):**
+   ```
+   training-data-pipeline.yaml:
+     1. Validate data
+     2. Start EC2
+     3. Train model ← MOVED HERE (before PR)
+     4. Quality gate
+     5. Stop EC2
+     6. Create PR ONLY if improved ← No separate workflow to trigger!
+     7. Auto-merge
+   ```
+
+**Benefits of new approach:**
+- ✅ No bot PR triggering needed - all in one workflow
+- ✅ PR only created if model improved (no wasted PRs)
+- ✅ No PAT needed (security improvement)
+- ✅ Faster feedback - know if data is good within 15 minutes
+- ✅ Complete automation: push data → auto-merge (if better)
+
+**Changes made:**
+- Modified `training-data-pipeline.yaml`: Added training jobs before PR creation
+- Modified `train.yml`: Disabled automatic triggers (manual use only)
+- Updated `docs/WORKFLOWS.md`: Documented new architecture
 
 **References:**
 - GitHub Docs: [Triggering a workflow from a workflow](https://docs.github.com/en/actions/using-workflows/triggering-a-workflow#triggering-a-workflow-from-a-workflow)
-- Related: PR #7, PR #4 (training didn't auto-start)
+- Implementation plan: Merge Workflows - Training Before PR Creation
 
 **Date discovered:** 2026-02-08
+**Date resolved:** 2026-02-11
 
 ---
 

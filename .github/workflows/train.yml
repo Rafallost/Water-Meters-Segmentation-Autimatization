@@ -1,14 +1,10 @@
-name: Train Model
+name: Train Model (Manual Only)
+
+# DEPRECATED: Training now happens automatically in training-data-pipeline.yaml
+# This workflow is kept for manual training only (e.g., hyperparameter tuning, debugging)
 
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'WMS/data/training/**'  # Any training data changes
-      - 'WMS/src/**'
-      - 'WMS/configs/**'
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:  # Manual trigger only
 
 permissions:
   contents: write

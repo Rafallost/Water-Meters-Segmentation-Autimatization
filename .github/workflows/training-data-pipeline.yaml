@@ -21,6 +21,11 @@ permissions:
 jobs:
   merge-and-validate:
     runs-on: ubuntu-latest
+    outputs:
+      validation_passed: ${{ steps.qa.outputs.validation_passed }}
+      total_images: ${{ steps.merge.outputs.total_images }}
+      new_images: ${{ steps.count_new.outputs.new_images }}
+      existing_images: ${{ steps.download.outputs.existing_images }}
 
     steps:
       - name: Checkout data branch
@@ -259,67 +264,6 @@ jobs:
           echo ""
           echo "✅ DVC tracking update complete!"
 
-      - name: Create Pull Request
-        if: steps.qa.outputs.validation_passed == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Check if PR already exists
-          EXISTING_PR=$(gh pr list --head ${{ github.ref_name }} --base main --json number --jq '.[0].number' || echo "")
-
-          if [ -n "$EXISTING_PR" ]; then
-            echo "ℹ️  PR #$EXISTING_PR already exists for branch ${{ github.ref_name }}"
-            echo "pr_number=$EXISTING_PR" >> $GITHUB_OUTPUT
-          else
-            echo "📝 Creating new Pull Request..."
-
-            # Create PR body
-            PR_BODY=$(cat <<'EOF'
-          ## 📊 Training Data Update
-
-          **Merged Dataset Summary:**
-          - Existing images from S3: ${{ steps.download.outputs.existing_images }}
-          - New images in this PR: ${{ steps.count_new.outputs.new_images }}
-          - **Total dataset size: ${{ steps.merge.outputs.total_images }} images**
-
-          ## ✅ Data Quality Validation
-
-          - [x] Image/mask pairs validated
-          - [x] Image resolutions checked (512x512)
-          - [x] Binary masks validated (0/255)
-          - [x] File format checks passed
-
-          ## 🚀 Next Steps
-
-          The training pipeline will:
-          1. Train U-Net model on merged dataset (${{ steps.merge.outputs.total_images }} images)
-          2. Compare metrics (Dice, IoU) against Production baseline
-          3. If improved: promote to Production and auto-merge
-          4. If not improved: block merge with detailed metrics
-
-          ## 📋 Quality Gate Rules
-
-          For this PR to be merged, the trained model must:
-          - Dice coefficient ≥ Production baseline (dynamic)
-          - IoU ≥ Production baseline (dynamic)
-
-          ---
-          🤖 *Merged by GitHub Actions - data pipeline*
-          EOF
-          )
-
-            # Create PR using gh CLI
-            PR_URL=$(gh pr create \
-              --title "data: add ${{ steps.count_new.outputs.new_images }} new training images (total: ${{ steps.merge.outputs.total_images }})" \
-              --body "$PR_BODY" \
-              --base main \
-              --head ${{ github.ref_name }})
-
-            PR_NUMBER=$(echo "$PR_URL" | grep -oP '(?<=pull/)\d+')
-            echo "✅ Created PR #$PR_NUMBER: $PR_URL"
-            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-          fi
-
       - name: Comment on commit (validation failed)
         if: steps.qa.outputs.validation_passed == 'false'
         uses: actions/github-script@v7
@@ -377,7 +321,7 @@ jobs:
       - name: Workflow Summary
         if: always()
         run: |
-          echo "## Training Data Pipeline" >> $GITHUB_STEP_SUMMARY
+          echo "## Training Data Pipeline - Data Validation" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ steps.qa.outputs.validation_passed }}" == "true" ]; then
@@ -388,10 +332,396 @@ jobs:
             echo "- New images: ${{ steps.count_new.outputs.new_images }}" >> $GITHUB_STEP_SUMMARY
             echo "- Total: ${{ steps.merge.outputs.total_images }} images" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Training data validated and PR created." >> $GITHUB_STEP_SUMMARY
-            echo "Training pipeline will run automatically." >> $GITHUB_STEP_SUMMARY
+            echo "Next: Training model to check if it improves..." >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **Status**: FAILED" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "Data validation failed. See errors in commit comment." >> $GITHUB_STEP_SUMMARY
           fi
+
+  # Start EC2 infrastructure for training
+  start-infra:
+    name: Start EC2 Infrastructure
+    needs: merge-and-validate
+    if: needs.merge-and-validate.outputs.validation_passed == 'true'
+    uses: ./.github/workflows/ec2-control.yaml
+    with:
+      action: start
+    secrets: inherit
+
+  # Train model and check if it improves
+  train:
+    name: Train Model
+    needs: start-infra
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      improved: ${{ steps.quality_gate.outputs.improved }}
+      dice: ${{ steps.quality_gate.outputs.dice }}
+      iou: ${{ steps.quality_gate.outputs.iou }}
+      run_id: ${{ steps.quality_gate.outputs.run_id }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install dvc[s3]
+
+      - name: Pull training data with DVC (if needed)
+        run: |
+          cd WMS/data/training
+
+          # Check if data already in repo (from data branch)
+          if [ -d "images" ] && [ "$(ls -A images)" ]; then
+            echo "✅ Training data already in repository"
+          elif [ -f "images.dvc" ]; then
+            echo "📥 Pulling data from S3 with DVC..."
+            dvc pull images.dvc masks.dvc || echo "⚠️  DVC pull failed, using local data"
+          else
+            echo "⚠️  No training data found"
+            exit 1
+          fi
+
+      - name: Wait for MLflow server
+        run: |
+          MLFLOW_URL="${{ needs.start-infra.outputs.mlflow_url }}"
+          echo "⏳ Waiting for MLflow server at $MLFLOW_URL"
+
+          MAX_ATTEMPTS=30
+          ATTEMPT=0
+
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            if curl -sf "$MLFLOW_URL/health" > /dev/null 2>&1; then
+              echo "✅ MLflow server is ready!"
+              exit 0
+            fi
+
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS - waiting 10s..."
+            sleep 10
+          done
+
+          echo "❌ MLflow server did not become ready (5 minutes)"
+          exit 1
+
+      - name: Train model
+        env:
+          MLFLOW_TRACKING_URI: ${{ needs.start-infra.outputs.mlflow_url }}
+          MLFLOW_HTTP_REQUEST_TIMEOUT: 300
+          MLFLOW_HTTP_REQUEST_MAX_RETRIES: 5
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          echo "=== Training Model ==="
+          echo "MLflow URL: $MLFLOW_TRACKING_URI"
+          cd WMS/src
+          python train.py --config ../configs/train.yaml --seed ${{ github.run_number }}
+
+      - name: Quality Gate - Compare with Production baseline
+        id: quality_gate
+        env:
+          MLFLOW_TRACKING_URI: ${{ needs.start-infra.outputs.mlflow_url }}
+          MLFLOW_HTTP_REQUEST_TIMEOUT: 300
+          MLFLOW_HTTP_REQUEST_MAX_RETRIES: 5
+        run: |
+          python3 << 'EOF'
+          import mlflow
+          import json
+          import os
+
+          mlflow.set_tracking_uri(os.environ['MLFLOW_TRACKING_URI'])
+          client = mlflow.tracking.MlflowClient()
+
+          # Get latest run from experiment
+          experiment = client.get_experiment_by_name("water-meter-segmentation")
+          if not experiment:
+              print("❌ Experiment not found")
+              exit(1)
+
+          runs = client.search_runs(
+              experiment_ids=[experiment.experiment_id],
+              order_by=["start_time DESC"],
+              max_results=1
+          )
+
+          if not runs:
+              print("❌ No runs found")
+              exit(1)
+
+          run = runs[0]
+          metrics = run.data.metrics
+
+          # Get current model metrics
+          current_dice = (
+              metrics.get('final_test_dice') or
+              metrics.get('test_dice') or
+              metrics.get('val_dice', 0)
+          )
+          current_iou = (
+              metrics.get('final_test_iou') or
+              metrics.get('test_iou') or
+              metrics.get('val_iou', 0)
+          )
+
+          # Get baseline from Production model (if exists)
+          try:
+              prod_versions = client.get_latest_versions("water-meter-segmentation", stages=["Production"])
+              if prod_versions:
+                  prod_version = prod_versions[0]
+                  prod_run = client.get_run(prod_version.run_id)
+
+                  prod_metrics = prod_run.data.metrics
+                  baseline_dice = (
+                      prod_metrics.get('final_test_dice') or
+                      prod_metrics.get('test_dice') or
+                      prod_metrics.get('val_dice', 0)
+                  )
+                  baseline_iou = (
+                      prod_metrics.get('final_test_iou') or
+                      prod_metrics.get('test_iou') or
+                      prod_metrics.get('val_iou', 0)
+                  )
+                  print(f"📊 Production baseline: Dice={baseline_dice:.4f}, IoU={baseline_iou:.4f}")
+              else:
+                  baseline_dice = 0.0
+                  baseline_iou = 0.0
+                  print("📊 No Production model - first training (baseline=0)")
+          except Exception as e:
+              print(f"⚠️  Could not fetch Production baseline: {e}")
+              baseline_dice = 0.0
+              baseline_iou = 0.0
+
+          # Quality gate: model must improve (no threshold, pure comparison)
+          improved = current_dice > baseline_dice and current_iou > baseline_iou
+
+          result = {
+              "run_id": run.info.run_id,
+              "metrics": {
+                  "dice": current_dice,
+                  "iou": current_iou
+              },
+              "baseline": {
+                  "dice": baseline_dice,
+                  "iou": baseline_iou
+              },
+              "improved": improved
+          }
+
+          print("\n" + "="*50)
+          print("QUALITY GATE RESULTS")
+          print("="*50)
+          print(json.dumps(result, indent=2))
+          print("="*50)
+
+          # Save results
+          with open('training_results.json', 'w') as f:
+              json.dump(result, f, indent=2)
+
+          # Output for GitHub Actions
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"improved={str(improved).lower()}\n")
+              f.write(f"dice={current_dice}\n")
+              f.write(f"iou={current_iou}\n")
+              f.write(f"run_id={run.info.run_id}\n")
+              f.write(f"baseline_dice={baseline_dice}\n")
+              f.write(f"baseline_iou={baseline_iou}\n")
+          EOF
+
+      - name: Upload results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: training-results
+          path: training_results.json
+          retention-days: 7
+
+      # If improved: promote model
+      - name: Promote model to Production
+        if: steps.quality_gate.outputs.improved == 'true'
+        env:
+          MLFLOW_TRACKING_URI: ${{ needs.start-infra.outputs.mlflow_url }}
+          MLFLOW_HTTP_REQUEST_TIMEOUT: 300
+          MLFLOW_HTTP_REQUEST_MAX_RETRIES: 5
+        run: |
+          python3 << 'EOF'
+          import mlflow
+          from mlflow.tracking import MlflowClient
+          import json
+          import os
+
+          mlflow.set_tracking_uri(os.environ['MLFLOW_TRACKING_URI'])
+          client = MlflowClient()
+
+          # Load results
+          with open('training_results.json', 'r') as f:
+              result = json.load(f)
+
+          run_id = result['run_id']
+
+          # Create new model version
+          model_version = client.create_model_version(
+              name="water-meter-segmentation",
+              source=f"runs:/{run_id}/model",
+              run_id=run_id
+          )
+
+          print(f"✅ Created model version: {model_version.version}")
+
+          # Transition to Production
+          client.transition_model_version_stage(
+              name="water-meter-segmentation",
+              version=model_version.version,
+              stage="Production",
+              archive_existing_versions=True
+          )
+
+          print(f"✅ Model version {model_version.version} promoted to Production!")
+          EOF
+
+      - name: Training Summary
+        if: always()
+        run: |
+          echo "## Training Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.quality_gate.outputs.improved }}" == "true" ]; then
+            echo "✅ **Model Improved!**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**New Metrics:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Dice: ${{ steps.quality_gate.outputs.dice }}" >> $GITHUB_STEP_SUMMARY
+            echo "- IoU: ${{ steps.quality_gate.outputs.iou }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Baseline Metrics:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Dice: ${{ steps.quality_gate.outputs.baseline_dice }}" >> $GITHUB_STEP_SUMMARY
+            echo "- IoU: ${{ steps.quality_gate.outputs.baseline_iou }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "PR will be created and auto-merged." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Model Did Not Improve**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Training completed but model did not surpass baseline." >> $GITHUB_STEP_SUMMARY
+            echo "No PR will be created." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # Always stop EC2
+  stop-infra:
+    name: Stop EC2 Infrastructure
+    needs: [start-infra, train]
+    if: always()
+    uses: ./.github/workflows/ec2-control.yaml
+    with:
+      action: stop
+    secrets: inherit
+
+  # Create PR ONLY if model improved
+  create-pr:
+    name: Create Pull Request
+    needs: [merge-and-validate, train, stop-infra]
+    if: needs.train.outputs.improved == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.create.outputs.pr_number }}
+
+    steps:
+      - name: Checkout data branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Create PR
+        id: create
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if PR already exists
+          EXISTING_PR=$(gh pr list --head ${{ github.ref_name }} --base main --json number --jq '.[0].number' || echo "")
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "ℹ️  PR #$EXISTING_PR already exists for branch ${{ github.ref_name }}"
+            echo "pr_number=$EXISTING_PR" >> $GITHUB_OUTPUT
+          else
+            echo "📝 Creating new Pull Request..."
+
+            # Create PR body
+            PR_BODY=$(cat <<EOF
+          ## 📊 Training Data Update
+
+          **Merged Dataset Summary:**
+          - Existing images from S3: ${{ needs.merge-and-validate.outputs.existing_images }}
+          - New images in this PR: ${{ needs.merge-and-validate.outputs.new_images }}
+          - **Total dataset size: ${{ needs.merge-and-validate.outputs.total_images }} images**
+
+          ## ✅ Data Quality Validation
+
+          - [x] Image/mask pairs validated
+          - [x] Image resolutions checked (512x512)
+          - [x] Binary masks validated (0/255)
+          - [x] File format checks passed
+
+          ## 📈 Training Results
+
+          **Model Improved!**
+
+          | Metric | New Model | Production Baseline | Improvement |
+          |--------|-----------|---------------------|-------------|
+          | **Dice** | ${{ needs.train.outputs.dice }} | ${{ needs.train.outputs.baseline_dice }} | ✅ |
+          | **IoU** | ${{ needs.train.outputs.iou }} | ${{ needs.train.outputs.baseline_iou }} | ✅ |
+
+          The model has been promoted to Production stage in MLflow.
+
+          ---
+          🤖 *Auto-generated by training data pipeline - model improved over baseline*
+          EOF
+          )
+
+            # Create PR using gh CLI
+            PR_URL=$(gh pr create \
+              --title "data: add ${{ needs.merge-and-validate.outputs.new_images }} new training images (model improved)" \
+              --body "$PR_BODY" \
+              --base main \
+              --head ${{ github.ref_name }})
+
+            PR_NUMBER=$(echo "$PR_URL" | grep -oP '(?<=pull/)\d+')
+            echo "✅ Created PR #$PR_NUMBER: $PR_URL"
+            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          fi
+
+  # Auto-merge PR if model improved
+  auto-merge:
+    name: Auto-merge PR
+    needs: create-pr
+    if: needs.create-pr.result == 'success'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ needs.create-pr.outputs.pr_number }}
+        run: |
+          echo "🚀 Model improved! Enabling auto-merge for PR #$PR_NUMBER"
+          gh pr merge $PR_NUMBER --auto --squash --delete-branch || echo "⚠️  Could not enable auto-merge"
+          echo "✅ Auto-merge enabled"
