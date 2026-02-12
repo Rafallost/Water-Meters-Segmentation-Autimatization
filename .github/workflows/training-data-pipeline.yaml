@@ -365,6 +365,10 @@ jobs:
       dice: ${{ steps.quality_gate.outputs.dice }}
       iou: ${{ steps.quality_gate.outputs.iou }}
       run_id: ${{ steps.quality_gate.outputs.run_id }}
+      baseline_dice: ${{ steps.quality_gate.outputs.baseline_dice }}
+      baseline_iou: ${{ steps.quality_gate.outputs.baseline_iou }}
+      baseline_dice_display: ${{ steps.quality_gate.outputs.baseline_dice_display }}
+      baseline_iou_display: ${{ steps.quality_gate.outputs.baseline_iou_display }}
 
     steps:
       - name: Checkout code
@@ -549,6 +553,17 @@ jobs:
               f.write(f"run_id={run.info.run_id}\n")
               f.write(f"baseline_dice={baseline_dice}\n")
               f.write(f"baseline_iou={baseline_iou}\n")
+
+              # Formatted baseline for display (show "first training" when 0.0)
+              if baseline_dice == 0.0:
+                  f.write(f"baseline_dice_display=0.0 (first training)\n")
+              else:
+                  f.write(f"baseline_dice_display={baseline_dice:.4f}\n")
+
+              if baseline_iou == 0.0:
+                  f.write(f"baseline_iou_display=0.0 (first training)\n")
+              else:
+                  f.write(f"baseline_iou_display={baseline_iou:.4f}\n")
           EOF
 
       - name: Upload results artifact
@@ -689,8 +704,8 @@ jobs:
 
           | Metric | New Model | Production Baseline | Improvement |
           |--------|-----------|---------------------|-------------|
-          | **Dice** | ${{ needs.train.outputs.dice }} | ${{ needs.train.outputs.baseline_dice }} | ✅ |
-          | **IoU** | ${{ needs.train.outputs.iou }} | ${{ needs.train.outputs.baseline_iou }} | ✅ |
+          | **Dice** | ${{ needs.train.outputs.dice }} | ${{ needs.train.outputs.baseline_dice_display }} | ✅ |
+          | **IoU** | ${{ needs.train.outputs.iou }} | ${{ needs.train.outputs.baseline_iou_display }} | ✅ |
 
           The model has been promoted to Production stage in MLflow.
 
