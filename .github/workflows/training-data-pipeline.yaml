@@ -227,9 +227,10 @@ jobs:
 
           echo "✅ .dvc files verified"
 
-          # Step 6: Commit .dvc files ONLY (not .gitignore - it blocks future commits)
+          # Step 6: Commit .dvc files AND .gitkeep (for directory structure)
           echo "💾 Committing DVC metadata..."
           git add WMS/data/training/images.dvc WMS/data/training/masks.dvc
+          git add WMS/data/training/images/.gitkeep WMS/data/training/masks/.gitkeep
 
           # Note: .gitignore is created by DVC but we DON'T commit it to avoid blocking future data uploads
 
