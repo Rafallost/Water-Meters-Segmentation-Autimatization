@@ -4,6 +4,38 @@ This document tracks known issues and their workarounds.
 
 ---
 
+## EC2: GitHub Actions runner wymaga ręcznej instalacji libicu
+
+**Status:** ⚠️ WORKAROUND REQUIRED
+
+**Problem:**
+Skrypt `user-data.sh` zawiera instalację `libicu` (wymaganą przez .NET Core 6.0 / GitHub Actions runner), ale w niektórych przypadkach instancja EC2 jest tworzona bez user-data (potwierdzone przez pusty wynik `curl http://169.254.169.254/latest/user-data`). Może się to zdarzyć gdy Terraform jest uruchamiany ze starszą wersją modułu lub gdy instancja jest tworzona ręcznie.
+
+**Objaw:**
+```
+Libicu's dependencies is missing for Dotnet Core 6.0
+Execute sudo ./bin/installdependencies.sh to install any missing Dotnet Core 6.0 dependencies.
+```
+
+Uwaga: `./bin/installdependencies.sh` NIE działa na Amazon Linux 2023 (błędnie wykrywa OS i nie instaluje pakietu).
+
+**Workaround:**
+```bash
+sudo dnf install -y libicu
+cd ~/actions-runner
+./config.sh --url <REPO_URL> --token <TOKEN>
+sudo ./svc.sh install
+sudo ./svc.sh start
+```
+
+**Weryfikacja:**
+```bash
+rpm -q libicu
+sudo ./svc.sh status
+```
+
+---
+
 ## GitHub Actions: Bot-created PRs don't trigger training workflow
 
 **Status:** ✅ RESOLVED (architecture redesigned)
