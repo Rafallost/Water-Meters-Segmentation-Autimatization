@@ -71,41 +71,42 @@ graph TB
 
 ## 2. Training Pipeline Details
 
-Focus on the simplified single-run training process with dynamic quality gate.
+Up to 3 training attempts with early stop when model improves.
 
 ```mermaid
 graph LR
     subgraph "Start Infrastructure"
         A[EC2 Stopped] --> B[GitHub Actions Trigger]
         B --> C[AWS CLI: start-instances]
-        C --> D[Wait for instance-running]
-        D --> E[Wait for MLflow /health]
+        C --> D[Wait for MLflow /health]
     end
 
-    subgraph "Single Training Run"
-        E --> F[Train Model Once<br/>On full merged dataset]
-        F --> G[Log to MLflow]
+    subgraph "Training Loop - up to 3 attempts"
+        D --> F1[Attempt 1<br/>seed=run_number]
+        F1 --> QG1{Quality Gate}
+        QG1 -->|Improved| J[Model Improved ✅]
+        QG1 -->|Not improved| F2[Attempt 2<br/>seed=run_number+1000]
+        F2 --> QG2{Quality Gate}
+        QG2 -->|Improved| J
+        QG2 -->|Not improved| F3[Attempt 3<br/>seed=run_number+2000]
+        F3 --> QG3{Quality Gate}
+        QG3 -->|Improved| J
+        QG3 -->|Not improved| K[Not Improved ❌]
     end
 
-    subgraph "Quality Gate"
-        G --> H[Fetch Production Baseline<br/>from MLflow dynamically]
-        H --> I{Compare Metrics}
-        I -->|Dice & IoU improved| J[Model Improved ✅]
-        I -->|No improvement| K[Not Improved ❌]
+    subgraph "Quality Gate Logic"
+        QG1 --> BL[Fetch Production Baseline<br/>from MLflow dynamically]
+        BL --> CMP[new_dice > baseline AND<br/>new_iou > baseline]
     end
 
     subgraph "Promote Model"
         J --> L[Register to MLflow]
         L --> M[Transition to Production]
-        M --> N[Archive Old Production]
     end
 
-    subgraph "PR Comment"
-        J --> O[Generate Results<br/>with comparison]
-        K --> O
-        O --> P[Post to PR]
-        P -->|Improved| Q[Auto-approve PR]
-        P -->|Not improved| R[Block merge]
+    subgraph "Result"
+        M --> Q[Create PR → Auto-merge]
+        K --> R[No PR created]
     end
 
     subgraph "Stop Infrastructure"
@@ -223,8 +224,8 @@ graph TB
     end
 
     subgraph "🔄 Triggers EC2 Auto-start"
-        D1[Push training data<br/>creates PR]
-        D2[Merge PR with data<br/>starts training]
+        D1[Push training data<br/>hook creates data/* branch]
+        D2[training-data-pipeline.yaml<br/>auto-starts EC2 and trains]
         D3[Manual workflow dispatch<br/>train.yml]
     end
 
@@ -436,17 +437,16 @@ journey
         Commit changes: 5: User
         Push to GitHub: 5: User
     section Automated Training
-        Pre-push hook creates branch (no AWS!): 9: Git Hook
-        GitHub Actions merges S3 data: 8: GitHub Actions
+        Pre-push hook creates data branch (no AWS!): 9: Git Hook
+        GitHub Actions downloads S3 data + merges: 8: GitHub Actions
         Data QA runs on merged dataset: 7: GitHub Actions
-        PR created with full dataset: 8: GitHub Actions
         EC2 starts: 8: GitHub Actions
-        Model trains once: 8: GitHub Actions
-        Results posted to PR: 8: GitHub Actions
-    section Review & Merge
-        Check PR comment: 5: User
-        Review metrics: 5: User
-        Merge if improved: 5: User
+        Model trains up to 3 attempts: 8: GitHub Actions
+        If improved - PR auto-created and merged: 9: GitHub Actions
+        EC2 stops: 8: GitHub Actions
+    section Done
+        New Production model in MLflow: 9: GitHub Actions
+        Download new model if needed: 5: User, sync_model_aws.py
     section Use Model
         Download Production model: 7: User, sync_model_aws.py
         Run local predictions: 9: User, predicts.py

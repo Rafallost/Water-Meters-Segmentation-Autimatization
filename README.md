@@ -89,11 +89,9 @@ python WMS/src/predicts.py
 👉 **[Full model usage guide](docs/USAGE.md#-using-the-production-model-locally)**
 
 **How it works:** Pre-push hook detects training data changes and automatically:
-- Downloads existing data from S3 (if any)
-- Merges with your new data locally
-- Creates branch `data/YYYYMMDD-HHMMSS` with **full merged dataset**
+- Creates branch `data/YYYYMMDD-HHMMSS` with only your new files
 - Pushes to branch (not to main)
-- Triggers automated PR → validation → training → auto-merge flow
+- GitHub Actions then: downloads existing S3 data, merges with new, validates, trains, auto-merges if improved
 
 👉 **[How hooks work](docs/BRANCH_PROTECTION.md#-two-layer-protection-system)**
 
@@ -313,10 +311,10 @@ User → Upload Data → Data QA → Training (EC2 auto-start)
 - Fully automated start/stop via GitHub Actions
 
 **Quality-Gated Training**
-- 3 training attempts per PR (different random seeds)
-- Compares to baseline: Dice 0.9275, IoU 0.8865
-- Auto-promotes best model to MLflow Production
-- Auto-approves PR if model improves
+- Up to 3 training attempts (different seeds), stops early if model improves
+- Compares to dynamic baseline fetched from MLflow Production model
+- Auto-promotes model to MLflow Production if improved
+- PR created and auto-merged only if model improved
 
 **Data Versioning**
 - DVC integration with S3 backend
@@ -362,11 +360,9 @@ Output: 512×512 binary mask (meter region)
 
 | Workflow | Purpose | Trigger | Duration |
 |----------|---------|---------|----------|
-| **Train Model** | Main training pipeline | PR to main | ~10 min |
-| **Data QA** | Validate data quality | PR to main | ~30 sec |
-| **Data Upload** | Version data, create PR | Push to `data/*` | ~1 min |
-| **CI Pipeline** | Lint and test | Every PR | ~2 min |
-| **EC2 Control** | Start/stop infrastructure | Called by other workflows | ~30 sec |
+| **training-data-pipeline.yaml** | Full pipeline: merge data → validate → train → PR | Push to `data/*` | ~15-30 min |
+| **ec2-control.yaml** | Start/stop EC2 infrastructure | Called by training pipeline | ~30 sec |
+| **train.yml** | Manual training (no data changes) | `workflow_dispatch` only | ~15 min |
 
 👉 **[Detailed workflow explanations](docs/WORKFLOWS.md)**
 
@@ -411,23 +407,23 @@ Output: 512×512 binary mask (meter region)
 
 ```mermaid
 graph TD
-    A[User: Upload Data] --> B[Data QA]
-    B -->|PASS| C[Create PR]
-    B -->|FAIL| Z[Error Comment]
-    C --> D[Start EC2]
-    D --> E[Train Attempt 1]
-    D --> F[Train Attempt 2]
-    D --> G[Train Attempt 3]
-    E --> H[Aggregate Results]
-    F --> H
-    G --> H
-    H -->|Improved| I[Promote to Production]
-    H -->|Not Improved| J[Reject PR]
-    I --> K[Build Docker & Deploy to k3s]
-    K --> L[Stop EC2]
-    J --> L
-    L --> M[Auto-Approve PR]
-    M --> N[User: Merge PR]
+    A[User: git push with new data] --> B[Pre-push Hook]
+    B --> C[data/TIMESTAMP branch created]
+    C --> D[GitHub Actions: merge-and-validate]
+    D -->|QA FAIL| Z[❌ Error comment on commit]
+    D -->|QA PASS| E[Start EC2]
+    E --> F[Train attempt 1]
+    F -->|Improved| I[✅ Promote to Production]
+    F -->|Not improved| G[Train attempt 2]
+    G -->|Improved| I
+    G -->|Not improved| H[Train attempt 3]
+    H -->|Improved| I
+    H -->|Not improved| J[❌ No PR created]
+    I --> K[Create PR]
+    K --> L[Auto-merge to main]
+    E --> M[Stop EC2]
+    I --> M
+    J --> M
 ```
 
 ---
@@ -497,17 +493,16 @@ Training metrics are logged to MLflow and posted as PR comments.
 **Example successful training:**
 
 ```
-## ✅ Training Results (3 attempts)
+## ✅ Training Results
 
-📈 MODEL IMPROVED
+📈 MODEL IMPROVED (attempt 1/3)
 
-### Best Result (Attempt 2)
-| Metric | Value  | Baseline | Status |
-|--------|--------|----------|--------|
-| Dice   | 0.9350 | 0.9275   | ✅ +0.81% |
-| IoU    | 0.8920 | 0.8865   | ✅ +0.62% |
+| Metric | New Model | Production Baseline |
+|--------|-----------|---------------------|
+| Dice   | 0.9350    | 0.9275              |
+| IoU    | 0.8920    | 0.8865              |
 
-🚀 Best model promoted to Production
+🚀 Model promoted to Production. PR auto-merged.
 ```
 
 Access MLflow UI: `http://<EC2_IP>:5000` (when EC2 is running)
@@ -577,12 +572,9 @@ Water-Meters-Segmentation-Autimatization/
 │   ├── models/                   # Local checkpoints (gitignored)
 │   └── tests/                    # Unit tests
 ├── .github/workflows/            # CI/CD pipelines
-│   ├── train.yml                 # ⭐ Main training workflow
-│   ├── data-qa.yaml              # Data validation
-│   ├── data-upload.yaml          # Data versioning + PR creation
-│   ├── ec2-control.yaml          # Infrastructure start/stop
-│   ├── ci.yaml                   # Linting and tests
-│   └── data-staging.yaml         # Auto-branch creation
+│   ├── training-data-pipeline.yaml  # ⭐ Full pipeline (merge+validate+train+PR)
+│   ├── ec2-control.yaml          # Infrastructure start/stop (reusable)
+│   └── train.yml                 # Manual training (workflow_dispatch only)
 ├── docs/                         # 📚 Documentation
 │   ├── WORKFLOWS.md              # All pipelines explained
 │   ├── USAGE.md                  # How-to guide
