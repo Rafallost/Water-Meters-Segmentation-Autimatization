@@ -118,6 +118,10 @@ graph LR
     style R fill:#f8d7da,stroke:#842029,color:#000
 ```
 
+**Seed strategy:** `run_number` is the GitHub Actions run number (auto-increments with each pipeline run). Each attempt uses a different seed offset (+0, +1000, +2000), which affects both:
+- Network weight initialization (`torch.manual_seed`)
+- Train/val/test data split (`random_state` in `train_test_split`)
+
 ---
 
 ## 3. Local Predictions Workflow
