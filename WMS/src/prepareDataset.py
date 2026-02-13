@@ -16,7 +16,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 ############### DATA LOAD ###############
-random.seed(42)
+_seed = int(os.environ.get("WMS_SEED", 42))
+random.seed(_seed)
 
 # Source data directories
 datasetPath = os.path.dirname(os.path.abspath(__file__))
@@ -45,8 +46,8 @@ for stem in image_stems:
     assert stem in mask_map, f"No mask found for image with stem: {stem}"
 
 # 80% train, 10% val, 10% test
-trainImgs, tempImgs = train_test_split(imageFiles, test_size=0.2, random_state=42)
-valImgs, testImgs = train_test_split(tempImgs, test_size=0.5, random_state=42)
+trainImgs, tempImgs = train_test_split(imageFiles, test_size=0.2, random_state=_seed)
+valImgs, testImgs = train_test_split(tempImgs, test_size=0.5, random_state=_seed)
 
 splits = {"train": trainImgs, "val": valImgs, "test": testImgs}
 

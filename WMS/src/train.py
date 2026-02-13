@@ -125,7 +125,11 @@ if torch.cuda.is_available():
 
 # Prepare data
 prepare_script = os.path.join(os.path.dirname(__file__), "prepareDataset.py")
-subprocess.run([sys.executable, prepare_script], check=True)
+subprocess.run(
+    [sys.executable, prepare_script],
+    check=True,
+    env={**os.environ, "WMS_SEED": str(args.seed)},
+)
 
 # Load data
 baseDataDir = os.path.join(
