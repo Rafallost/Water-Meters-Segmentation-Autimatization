@@ -36,8 +36,15 @@ from prometheus_client import (
 import sys
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
+sys.path.append(str(Path(__file__).parent.parent))  # so "model" resolves for pickle
 from WMS.src.model import WaterMetersUNet
 from WMS.src.transforms import valTransforms
+
+# Register "model" as alias so torch.load can unpickle models saved by train.py
+# (train.py uses `from model import WaterMetersUNet`, pickle records module as "model")
+import WMS.src.model as _wms_model
+
+sys.modules["model"] = _wms_model
 
 # =============================================================================
 # Prometheus Metrics
