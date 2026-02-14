@@ -695,11 +695,32 @@ jobs:
             echo "No PR will be created." >> $GITHUB_STEP_SUMMARY
           fi
 
-  # Always stop EC2
+  # Stop EC2 only when training did NOT improve the model (or failed)
+  # When improved == true, EC2 stays running for inline deployment below
   stop-infra:
     name: Stop EC2 Infrastructure
     needs: [start-infra, train]
-    if: always()
+    if: always() && (needs.train.result != 'success' || needs.train.outputs.improved != 'true')
+    uses: ./.github/workflows/ec2-control.yaml
+    with:
+      action: stop
+    secrets: inherit
+
+  # Deploy model inline when training improved — EC2 is already running
+  deploy:
+    name: Deploy Model to k3s
+    needs: [start-infra, train]
+    if: needs.train.result == 'success' && needs.train.outputs.improved == 'true'
+    uses: ./.github/workflows/deploy-model.yaml
+    with:
+      trigger_reason: training
+    secrets: inherit
+
+  # Stop EC2 after deployment (always — whether deploy succeeded or failed)
+  stop-after-deploy:
+    name: Stop EC2 After Deploy
+    needs: [start-infra, deploy]
+    if: always() && needs.deploy.result != 'skipped'
     uses: ./.github/workflows/ec2-control.yaml
     with:
       action: stop
@@ -708,8 +729,8 @@ jobs:
   # Create PR ONLY if model improved
   create-pr:
     name: Create Pull Request
-    needs: [merge-and-validate, train, stop-infra]
-    if: needs.train.outputs.improved == 'true'
+    needs: [merge-and-validate, train]
+    if: needs.train.result == 'success' && needs.train.outputs.improved == 'true'
     runs-on: ubuntu-latest
     outputs:
       pr_number: ${{ steps.create.outputs.pr_number }}

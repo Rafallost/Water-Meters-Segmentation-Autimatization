@@ -9,7 +9,8 @@ on:
       - 'devops/helm/**'         # Helm chart changes
       - 'infrastructure/helm-values.yaml'  # Deployment config
       - 'requirements.txt'       # Python dependencies
-      - 'WMS/models/production_current.json'  # New model promoted to Production
+      # WMS/models/production_current.json intentionally excluded:
+      # training-data-pipeline.yaml deploys inline after successful training
   workflow_dispatch:  # ⚠️ WARNING: Requires Production model in MLflow! Will fail if no model exists.
 
 permissions:

@@ -5,15 +5,15 @@ Przegląd wszystkich workflow w tym projekcie i ich wzajemnych zależności.
 ## Architektura
 
 ```
-Użytkownik pushuje dane
-        │
+Użytkownik pushuje dane do main
+        │ [nowy data/<time> branch]
         ▼
 training-data-pipeline.yaml   ←── główny pipeline (auto)
   ├── ec2-control.yaml         ←── reużywalny: start/stop EC2
   └── deploy-model.yaml        ←── reużywalny: build + deploy
 
-Push kodu do main
-        │
+Push kodu do presonal branch
+        │[merge]
         ▼
 release-deploy.yaml            ←── wyzwalacz releasu (auto)
   ├── ec2-control.yaml
@@ -42,6 +42,7 @@ Jest to centralny workflow projektu. Uruchamia się automatycznie gdy użytkowni
 ### `release-deploy.yaml` — Deploy przy zmianie kodu
 
 Wyzwalacz: push do `main` gdy zmieniają się pliki:
+
 - `WMS/src/serve/**` (kod aplikacji)
 - `docker/**` (Dockerfile)
 - `devops/helm/**` (Helm charts)
@@ -80,6 +81,7 @@ Wyzwalacz: ręczny (`workflow_dispatch`) z wyborem akcji (start/stop)
 Do ręcznego uruchamiania i zatrzymywania EC2 z poziomu GitHub Actions UI. Przydatne przy debugowaniu lub oszczędzaniu kosztów.
 
 Jak uruchomić:
+
 1. GitHub → **Actions** → **"Manual EC2 Control"**
 2. Kliknij **"Run workflow"**
 3. Z dropdownu wybierz `start` lub `stop`
@@ -95,22 +97,22 @@ Sprawdzenia jakości kodu: linting, testy jednostkowe, walidacja konfiguracji He
 
 ## Zależności między workflow
 
-| Workflow | Wywołuje |
-|---|---|
+| Workflow                      | Wywołuje                                |
+| ----------------------------- | --------------------------------------- |
 | `training-data-pipeline.yaml` | `ec2-control.yaml`, `deploy-model.yaml` |
-| `release-deploy.yaml` | `ec2-control.yaml`, `deploy-model.yaml` |
-| `deploy-model.yaml` | — (endpoint, nie wywołuje innych) |
-| `ec2-control.yaml` | — (endpoint, nie wywołuje innych) |
-| `ec2-manual-control.yaml` | — |
-| `ci.yaml` | — |
+| `release-deploy.yaml`         | `ec2-control.yaml`, `deploy-model.yaml` |
+| `deploy-model.yaml`           | — (endpoint, nie wywołuje innych)       |
+| `ec2-control.yaml`            | — (endpoint, nie wywołuje innych)       |
+| `ec2-manual-control.yaml`     | —                                       |
+| `ci.yaml`                     | —                                       |
 
 ## Wymagane sekrety
 
-| Sekret | Używany przez | Opis |
-|---|---|---|
-| `AWS_ACCESS_KEY_ID` | wszystkie | AWS credentials |
-| `AWS_SECRET_ACCESS_KEY` | wszystkie | AWS credentials |
-| `AWS_SESSION_TOKEN` | wszystkie | AWS session (Academy) |
-| `EC2_INSTANCE_ID` | `ec2-control.yaml` | ID instancji EC2 |
-| `EC2_HOST` | `ec2-control.yaml` | IP/hostname EC2 |
-| `EC2_SSH_KEY` | `ec2-control.yaml` | Klucz SSH do EC2 |
+| Sekret                  | Używany przez      | Opis                  |
+| ----------------------- | ------------------ | --------------------- |
+| `AWS_ACCESS_KEY_ID`     | wszystkie          | AWS credentials       |
+| `AWS_SECRET_ACCESS_KEY` | wszystkie          | AWS credentials       |
+| `AWS_SESSION_TOKEN`     | wszystkie          | AWS session (Academy) |
+| `EC2_INSTANCE_ID`       | `ec2-control.yaml` | ID instancji EC2      |
+| `EC2_HOST`              | `ec2-control.yaml` | IP/hostname EC2       |
+| `EC2_SSH_KEY`           | `ec2-control.yaml` | Klucz SSH do EC2      |
