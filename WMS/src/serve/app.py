@@ -226,16 +226,153 @@ async def startup_event():
 
 @app.get("/")
 async def root():
-    """Root endpoint."""
-    return {
-        "service": "Water Meters Segmentation API",
-        "version": "1.0.0",
-        "endpoints": {
-            "health": "/health",
-            "predict": "/predict",
-            "metrics": "/metrics",
-        },
+    """Serve prediction UI."""
+    html = """<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Water Meters Segmentation</title>
+<style>
+  body { font-family: sans-serif; max-width: 960px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; color: #222; }
+  h1 { font-size: 1.4rem; margin-bottom: 4px; }
+  p.sub { color: #666; margin: 0 0 24px; font-size: 0.9rem; }
+  .drop-zone {
+    border: 2px dashed #999; border-radius: 8px; padding: 40px;
+    text-align: center; cursor: pointer; background: #fff;
+    transition: border-color .2s;
+  }
+  .drop-zone:hover, .drop-zone.dragover { border-color: #3b82f6; }
+  .drop-zone input { display: none; }
+  .drop-zone label { cursor: pointer; color: #3b82f6; font-weight: 500; }
+  button#predict-btn {
+    margin-top: 16px; padding: 10px 28px; background: #3b82f6; color: #fff;
+    border: none; border-radius: 6px; font-size: 1rem; cursor: pointer;
+  }
+  button#predict-btn:disabled { background: #93c5fd; cursor: default; }
+  button#download-btn {
+    margin-top: 12px; padding: 8px 20px; background: #16a34a; color: #fff;
+    border: none; border-radius: 6px; font-size: 0.9rem; cursor: pointer; display: none;
+  }
+  #status { margin-top: 12px; font-size: 0.9rem; color: #555; min-height: 20px; }
+  #results { margin-top: 28px; }
+  .result-row { display: flex; gap: 16px; align-items: flex-start; background: #fff; padding: 16px; border-radius: 8px; margin-bottom: 16px; }
+  .result-row img { width: 220px; height: 220px; object-fit: contain; border: 1px solid #ddd; border-radius: 4px; }
+  .result-row .info { font-size: 0.85rem; color: #555; margin-top: 6px; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col span { font-size: 0.8rem; font-weight: 600; margin-bottom: 6px; color: #444; }
+</style>
+</head>
+<body>
+<h1>Water Meters Segmentation</h1>
+<p class="sub">Wgraj zdjęcia wodomierzy, aby otrzymać maski segmentacji</p>
+
+<div class="drop-zone" id="drop-zone">
+  <input type="file" id="file-input" accept="image/*" multiple>
+  <p>Przeciągnij zdjęcia tutaj lub <label for="file-input">wybierz pliki</label></p>
+  <p id="file-count" style="color:#555;font-size:.85rem;margin:0"></p>
+</div>
+
+<button id="predict-btn" disabled>Predykcja</button>
+<button id="download-btn">Pobierz wszystkie maski (.zip)</button>
+<div id="status"></div>
+<div id="results"></div>
+
+<script>
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const predictBtn = document.getElementById('predict-btn');
+const downloadBtn = document.getElementById('download-btn');
+const statusEl  = document.getElementById('status');
+const resultsEl = document.getElementById('results');
+
+let selectedFiles = [];
+let maskBlobs = [];
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  setFiles([...e.dataTransfer.files].filter(f => f.type.startsWith('image/')));
+});
+fileInput.addEventListener('change', () => setFiles([...fileInput.files]));
+
+function setFiles(files) {
+  selectedFiles = files;
+  document.getElementById('file-count').textContent = files.length ? `Wybrano: ${files.length} plik(ów)` : '';
+  predictBtn.disabled = files.length === 0;
+  resultsEl.innerHTML = '';
+  downloadBtn.style.display = 'none';
+  maskBlobs = [];
+}
+
+predictBtn.addEventListener('click', async () => {
+  if (!selectedFiles.length) return;
+  predictBtn.disabled = true;
+  resultsEl.innerHTML = '';
+  maskBlobs = [];
+  downloadBtn.style.display = 'none';
+  statusEl.textContent = `Przetwarzanie 0 / ${selectedFiles.length}…`;
+
+  for (let i = 0; i < selectedFiles.length; i++) {
+    const file = selectedFiles[i];
+    statusEl.textContent = `Przetwarzanie ${i + 1} / ${selectedFiles.length}: ${file.name}…`;
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const res = await fetch('/predict', { method: 'POST', body: formData });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || res.statusText); }
+      const data = await res.json();
+
+      const origUrl = URL.createObjectURL(file);
+      const maskUrl = 'data:image/png;base64,' + data.mask_base64;
+
+      const raw = atob(data.mask_base64);
+      const arr = new Uint8Array(raw.length);
+      for (let j = 0; j < raw.length; j++) arr[j] = raw.charCodeAt(j);
+      maskBlobs.push({ name: 'mask_' + file.name.replace(/\.[^.]+$/, '.png'), blob: new Blob([arr], { type: 'image/png' }) });
+
+      const row = document.createElement('div');
+      row.className = 'result-row';
+      row.innerHTML = `
+        <div class="col"><span>Oryginał</span><img src="${origUrl}" alt="original"></div>
+        <div class="col"><span>Maska</span><img src="${maskUrl}" alt="mask">
+          <a href="${maskUrl}" download="mask_${file.name.replace(/\.[^.]+$/, '.png')}"
+             style="margin-top:6px;font-size:.8rem;color:#3b82f6">Pobierz maskę</a>
+        </div>
+        <div class="info">${file.name}<br>Latencja: ${data.metadata.latency_seconds}s</div>`;
+      resultsEl.appendChild(row);
+    } catch (err) {
+      const row = document.createElement('div');
+      row.className = 'result-row';
+      row.style.borderLeft = '4px solid #ef4444';
+      row.textContent = file.name + ': Błąd — ' + err.message;
+      resultsEl.appendChild(row);
     }
+  }
+
+  statusEl.textContent = `Gotowe (${selectedFiles.length} zdjęć).`;
+  predictBtn.disabled = false;
+  if (maskBlobs.length > 0) downloadBtn.style.display = 'inline-block';
+});
+
+downloadBtn.addEventListener('click', async () => {
+  const { default: JSZip } = await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm');
+  const zip = new JSZip();
+  maskBlobs.forEach(({ name, blob }) => zip.file(name, blob));
+  const content = await zip.generateAsync({ type: 'blob' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(content);
+  a.download = 'maski.zip';
+  a.click();
+});
+</script>
+</body>
+</html>"""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=html)
 
 
 @app.get("/health")
