@@ -403,7 +403,7 @@ jobs:
     name: Train Model
     needs: start-infra
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 300
     outputs:
       improved: ${{ steps.quality_gate.outputs.improved }}
       dice: ${{ steps.quality_gate.outputs.dice }}
