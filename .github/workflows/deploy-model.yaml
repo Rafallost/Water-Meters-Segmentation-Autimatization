@@ -188,10 +188,17 @@ jobs:
 
       - name: Verify Deployment
         run: |
-          echo "Waiting for pod to be ready..."
+          echo "Waiting for pod to be ready (up to 10 min, image pull ~8GB)..."
           kubectl wait --for=condition=ready pod \
             -l app=ml-model,release=wms-model \
-            --timeout=300s
+            --timeout=600s || {
+            echo "❌ Pod not ready in time. Logs:"
+            kubectl logs -l app=ml-model,release=wms-model --tail=50 || true
+            echo "Pod status:"
+            kubectl get pod -l app=ml-model,release=wms-model -o wide
+            kubectl describe pod -l app=ml-model,release=wms-model | tail -30
+            exit 1
+          }
 
           echo "Testing health endpoint..."
           kubectl exec -l app=ml-model,release=wms-model -- curl -f http://localhost:8000/health

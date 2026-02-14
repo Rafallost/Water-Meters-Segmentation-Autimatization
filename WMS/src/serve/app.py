@@ -234,7 +234,8 @@ async def root():
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Water Meters Segmentation</title>
 <style>
-  body { font-family: sans-serif; max-width: 960px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; color: #222; }
+  body { font-family: sans-serif; max-width: 960px; margin: 40px auto; padding: 0 20px;
+         background: #f5f5f5; color: #222; }
   h1 { font-size: 1.4rem; margin-bottom: 4px; }
   p.sub { color: #666; margin: 0 0 24px; font-size: 0.9rem; }
   .drop-zone {
@@ -256,7 +257,8 @@ async def root():
   }
   #status { margin-top: 12px; font-size: 0.9rem; color: #555; min-height: 20px; }
   #results { margin-top: 28px; }
-  .result-row { display: flex; gap: 16px; align-items: flex-start; background: #fff; padding: 16px; border-radius: 8px; margin-bottom: 16px; }
+  .result-row { display: flex; gap: 16px; align-items: flex-start; background: #fff;
+               padding: 16px; border-radius: 8px; margin-bottom: 16px; }
   .result-row img { width: 220px; height: 220px; object-fit: contain; border: 1px solid #ddd; border-radius: 4px; }
   .result-row .info { font-size: 0.85rem; color: #555; margin-top: 6px; }
   .col { display: flex; flex-direction: column; align-items: center; }
@@ -332,14 +334,15 @@ predictBtn.addEventListener('click', async () => {
       const raw = atob(data.mask_base64);
       const arr = new Uint8Array(raw.length);
       for (let j = 0; j < raw.length; j++) arr[j] = raw.charCodeAt(j);
-      maskBlobs.push({ name: 'mask_' + file.name.replace(/\.[^.]+$/, '.png'), blob: new Blob([arr], { type: 'image/png' }) });
+      const maskName = 'mask_' + file.name.replace(/\\.[^.]+$/, '.png');
+      maskBlobs.push({ name: maskName, blob: new Blob([arr], { type: 'image/png' }) });
 
       const row = document.createElement('div');
       row.className = 'result-row';
       row.innerHTML = `
         <div class="col"><span>Oryginał</span><img src="${origUrl}" alt="original"></div>
         <div class="col"><span>Maska</span><img src="${maskUrl}" alt="mask">
-          <a href="${maskUrl}" download="mask_${file.name.replace(/\.[^.]+$/, '.png')}"
+          <a href="${maskUrl}" download="${maskName}"
              style="margin-top:6px;font-size:.8rem;color:#3b82f6">Pobierz maskę</a>
         </div>
         <div class="info">${file.name}<br>Latencja: ${data.metadata.latency_seconds}s</div>`;
