@@ -178,9 +178,10 @@ testDataset = WMSDataset(testImagePaths, testMaskPaths, imageTransforms=valTrans
 
 # DataLoaders
 batch_size = config["training"]["batch_size"]
-trainLoader = DataLoader(trainDataset, batch_size=batch_size, shuffle=True)
-valLoader = DataLoader(valDataset, batch_size=batch_size, shuffle=False)
-testLoader = DataLoader(testDataset, batch_size=batch_size, shuffle=False)
+num_workers = min(4, os.cpu_count() or 1)
+trainLoader = DataLoader(trainDataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=False)
+valLoader = DataLoader(valDataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=False)
+testLoader = DataLoader(testDataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=False)
 
 # Device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -605,9 +606,13 @@ print(f"Test Hausdorff: {np.mean(hausdorff_dists):.4f}")
 
 # Log final test metrics to MLflow (summary metrics without step)
 # These are the metrics from best.pth evaluated on full test set
-mlflow.log_metric("final_test_dice", float(np.mean(dice_scores)))
-mlflow.log_metric("final_test_iou", float(np.mean(iou_scores)))
-mlflow.log_metric("final_test_hausdorff", float(np.mean(hausdorff_dists)))
+try:
+    mlflow.log_metric("final_test_dice", float(np.mean(dice_scores)))
+    mlflow.log_metric("final_test_iou", float(np.mean(iou_scores)))
+    mlflow.log_metric("final_test_hausdorff", float(np.mean(hausdorff_dists)))
+except Exception as e:
+    print(f"⚠️  MLflow final metrics upload failed: {e}")
+    print("→ Metrics saved locally in metrics.json")
 
 
 model.eval()
