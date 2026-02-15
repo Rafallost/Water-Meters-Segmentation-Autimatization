@@ -28,7 +28,6 @@ Dla programistów i zaawansowanych użytkowników:
 | **KNOWN_ISSUES.md** | [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Znane problemy i obejścia |
 | **MONITORING.md** | [MONITORING.md](MONITORING.md) | Prometheus + Grafana |
 | **CREDENTIALS.md** | [CREDENTIALS.md](CREDENTIALS.md) | Zarządzanie credentials AWS Academy |
-| **VENV_SETUP.md** | [VENV_SETUP.md](VENV_SETUP.md) | Konfiguracja środowiska Python |
 
 ## Dla AI Assistantów
 
@@ -79,8 +78,7 @@ Water-Meters-Segmentation-Autimatization/
 │   ├── BRANCH_PROTECTION.md     # Setup GitHub
 │   ├── KNOWN_ISSUES.md          # Znane problemy
 │   ├── MONITORING.md            # Prometheus + Grafana
-│   ├── CREDENTIALS.md           # AWS credentials
-│   └── VENV_SETUP.md            # Środowisko Python
+│   └── CREDENTIALS.md           # AWS credentials
 │
 ├── devops/                      # Infrastruktura (submoduł)
 │   ├── CLAUDE.md                # Kontekst dla AI
