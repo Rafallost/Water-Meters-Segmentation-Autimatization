@@ -48,6 +48,8 @@ dvc pull
 
 Aby dodać nowe zdjęcia i uruchomić pipeline treningowy — wystarczy skopiować pary obraz+maska do katalogów `images/` i `masks/`, a następnie wykonać `git push`. Pre-push hook automatycznie tworzy branch `data/TIMESTAMP` i uruchamia GitHub Actions.
 
+Ważna właściwość pipeline: dane nie trafiają do S3 przed zakończeniem treningu. GitHub Actions używa własnego artifact storage do przekazania scalonego datasetu między jobami. DVC push do S3 odbywa się dopiero po pozytywnym quality gate — dzięki temu w S3 nigdy nie powstają pliki osierocone.
+
 ## Pliki źródłowe (`src/`)
 
 ### model.py — architektura
@@ -112,7 +114,7 @@ Konfiguracja (`configs/train.yaml`):
 
 | Parametr | Wartość |
 |---|---|
-| epochs | 100 |
+| epochs | 50 |
 | batch_size | 4 |
 | learning_rate | 0.0001 |
 | weight_decay | 0.0001 |

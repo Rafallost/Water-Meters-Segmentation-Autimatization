@@ -32,12 +32,13 @@ Wyzwalacz: push do branchy `data/**`
 
 Jest to centralny workflow projektu. Uruchamia się automatycznie gdy użytkownik pushuje nowe dane treningowe przez pre-push hook. Wykonuje pełny cykl:
 
-1. Pobiera dane z S3, scala z nowymi danymi, waliduje jakość (pary obraz/maska, rozmiar 512×512, maski binarne)
+1. Pobiera istniejące dane z S3 (przez DVC + main branch), scala z nowymi danymi, waliduje jakość (pary obraz/maska, rozmiar 512×512, maski binarne), pakuje scalony dataset jako GitHub Actions artifact
 2. Uruchamia EC2
-3. Trenuje model, ocenia quality gate względem dynamicznego baseline z MLflow
-4. Zatrzymuje EC2 (zawsze, nawet przy błędzie)
-5. Jeśli model się poprawił: tworzy PR i włącza auto-merge
-6. Jeśli nie: branch `data/TIMESTAMP` pozostaje do przeglądu
+3. Pobiera dataset z artifact (nie z S3 — zero uploadu przed treningiem), trenuje model, ocenia quality gate względem dynamicznego baseline z MLflow
+4. Jeśli model się poprawił: aktualizuje DVC tracking (usuwa jpg z brancha, dvc push do S3), uploaduje artifact wyników, promuje model do Production
+5. Zatrzymuje EC2 (zawsze, nawet przy błędzie)
+6. Jeśli model się poprawił: tworzy PR (branch bez jpg, tylko .dvc) i włącza auto-merge
+7. Jeśli nie: branch `data/TIMESTAMP` pozostaje do przeglądu (bez jpg w historii)
 
 ### `release-deploy.yaml` — Deploy przy zmianie kodu
 

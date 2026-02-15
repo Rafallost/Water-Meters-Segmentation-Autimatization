@@ -201,7 +201,7 @@ python WMS/scripts/show_metrics.py --all
 
 ### What It Does
 
-1. ✅ Connects to MLflow at http://100.49.195.150:5000
+1. ✅ Connects to MLflow at `http://<EC2_IP>:5000`
 2. ✅ Fetches Production model (or all versions)
 3. ✅ Displays key metrics: Dice, IoU, Loss
 4. ✅ Shows training parameters: LR, batch size, epochs
@@ -319,7 +319,7 @@ python WMS/scripts/check_model.py
 #### With Production Model
 
 ```
-Connecting to MLflow: http://100.49.195.150:5000
+Connecting to MLflow: http://<EC2_IP>:5000
 
 Searching for model: water-meter-segmentation
 

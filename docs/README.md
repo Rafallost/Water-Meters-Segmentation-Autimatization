@@ -2,114 +2,102 @@
 
 Welcome to the Water Meters Segmentation project documentation!
 
----
+## Dokumentacja główna
 
-## 📚 Main Documentation
+Zacznij tutaj żeby zrozumieć i używać systemu:
 
-Start here for understanding and using the system:
+| Dokument | Opis | Kiedy czytać |
+|----------|------|--------------|
+| **[WORKFLOWS.md](WORKFLOWS.md)** | Wszystkie pipeline wyjaśnione | Pierwsze uruchomienie, debugowanie |
+| **[USAGE.md](USAGE.md)** | Przewodnik krok po kroku | Codzienne operacje (upload danych) |
+| **[ARCHITECTURE.md](ARCHITECTURE.md)** | Projekt systemu i komponenty | Zrozumienie architektury |
+| **[QUICKSTART.md](QUICKSTART.md)** | Szybki start — minimalny setup | Nowe środowisko, onboarding |
+| **[BRANCH_PROTECTION.md](BRANCH_PROTECTION.md)** | Dwie warstwy ochrony: hooki + reguły GitHub | Zrozumienie modelu bezpieczeństwa |
 
-| Document | Description | When to Read |
-|----------|-------------|--------------|
-| **[WORKFLOWS.md](WORKFLOWS.md)** | ⭐ **Start here!** All pipelines explained | First time setup, debugging workflows |
-| **[USAGE.md](USAGE.md)** | Step-by-step usage guide | Daily operations (uploading data) |
-| **[ARCHITECTURE.md](ARCHITECTURE.md)** | System design and components | Understanding system design |
-| **[BRANCH_PROTECTION.md](BRANCH_PROTECTION.md)** | Two-layer protection: hooks + GitHub rules | Understanding security model |
+## Dokumentacja techniczna
 
----
+Dla programistów i zaawansowanych użytkowników:
 
-## 🔧 Technical Documentation
+| Dokument | Lokalizacja | Opis |
+|----------|-------------|------|
+| **Project README** | [../README.md](../README.md) | Główny przegląd projektu i quick start |
+| **Tests README** | [../WMS/tests/README.md](../WMS/tests/README.md) | Dokumentacja testów jednostkowych |
+| **Terraform README** | [../devops/terraform/README.md](../devops/terraform/README.md) | Infrastructure as Code |
+| **Helm README** | [../devops/helm/README.md](../devops/helm/README.md) | Helm chart — serving modelu na k3s |
+| **Scripts README** | [../devops/scripts/README.md](../devops/scripts/README.md) | Skrypty infrastrukturalne i MLOps |
+| **KNOWN_ISSUES.md** | [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Znane problemy i obejścia |
+| **MONITORING.md** | [MONITORING.md](MONITORING.md) | Prometheus + Grafana |
+| **CREDENTIALS.md** | [CREDENTIALS.md](CREDENTIALS.md) | Zarządzanie credentials AWS Academy |
+| **VENV_SETUP.md** | [VENV_SETUP.md](VENV_SETUP.md) | Konfiguracja środowiska Python |
 
-For developers and advanced users:
+## Dla AI Assistantów
 
-| Document | Location | Description |
-|----------|----------|-------------|
-| **Project README** | [../README.md](../README.md) | Main project overview and quick start |
-| **Tests README** | [../WMS/tests/README.md](../WMS/tests/README.md) | Unit tests documentation |
-| **Terraform README** | [../devops/terraform/README.md](../devops/terraform/README.md) | Infrastructure as Code docs |
+| Dokument | Lokalizacja | Cel |
+|----------|-------------|-----|
+| **CLAUDE.md** | [../CLAUDE.md](../CLAUDE.md) | Kontekst projektu i zasady dla AI |
+| **PLAN.md** | [../PLAN.md](../PLAN.md) | Fazy implementacji i priorytety |
 
----
+## Przewodnik czytania
 
-## 🤖 For AI Assistants
-
-If you're an AI assistant working on this project:
-
-| Document | Location | Purpose |
-|----------|----------|---------|
-| **CLAUDE.md** | [../devops/CLAUDE.md](../devops/CLAUDE.md) | Project context and rules for AI assistants |
-| **PLAN.md** | [../devops/PLAN.md](../devops/PLAN.md) | Implementation phases and priorities |
-
----
-
-## 📖 Reading Guide
-
-### For New Users:
+### Nowy użytkownik:
 ```
-1. Read ../README.md (project overview)
-2. Read WORKFLOWS.md (understand the system)
-3. Read USAGE.md (learn how to use)
-4. Setup BRANCH_PROTECTION.md (one time)
+1. ../README.md          (przegląd projektu)
+2. QUICKSTART.md         (szybki start)
+3. WORKFLOWS.md          (jak działa system)
+4. USAGE.md              (jak używać)
+5. BRANCH_PROTECTION.md  (jednorazowy setup)
 ```
 
-### For Developers:
+### Deweloper:
 ```
-1. Read ARCHITECTURE.md (system design)
-2. Read ../devops/PLAN.md (implementation phases)
-3. Read ../devops/terraform/README.md (infrastructure)
-4. Read ../WMS/tests/README.md (testing)
-```
-
-### For Debugging:
-```
-1. Check WORKFLOWS.md (which workflow failed?)
-2. Check USAGE.md troubleshooting section
-3. Check GitHub Actions logs
-4. Check ../devops/CLAUDE.md (known issues)
+1. ARCHITECTURE.md                    (projekt systemu)
+2. ../devops/scripts/README.md        (skrypty)
+3. ../devops/terraform/README.md      (infrastruktura)
+4. ../WMS/tests/README.md             (testy)
 ```
 
----
+### Debugowanie:
+```
+1. WORKFLOWS.md          (który workflow padł?)
+2. KNOWN_ISSUES.md       (znane problemy)
+3. USAGE.md              (sekcja troubleshooting)
+4. Logi GitHub Actions
+```
 
-## 🗂️ Documentation Structure
+## Struktura plików
 
 ```
 Water-Meters-Segmentation-Autimatization/
-├── README.md                    # Main project overview
+├── README.md                    # Główny przegląd projektu
 │
-├── docs/                        # 📚 Main documentation (YOU ARE HERE)
-│   ├── README.md                # This index
-│   ├── WORKFLOWS.md             # All workflows explained
-│   ├── USAGE.md                 # How-to guide
-│   ├── ARCHITECTURE.md          # System design
-│   └── BRANCH_PROTECTION.md     # GitHub setup
+├── docs/                        # Dokumentacja (TUTAJ JESTEŚ)
+│   ├── README.md                # Ten indeks
+│   ├── WORKFLOWS.md             # Wszystkie workflow wyjaśnione
+│   ├── USAGE.md                 # Przewodnik użytkownika
+│   ├── QUICKSTART.md            # Szybki start
+│   ├── ARCHITECTURE.md          # Projekt systemu
+│   ├── BRANCH_PROTECTION.md     # Setup GitHub
+│   ├── KNOWN_ISSUES.md          # Znane problemy
+│   ├── MONITORING.md            # Prometheus + Grafana
+│   ├── CREDENTIALS.md           # AWS credentials
+│   └── VENV_SETUP.md            # Środowisko Python
 │
-├── devops/                      # 🔧 Infrastructure (submodule)
-│   ├── CLAUDE.md                # AI assistant context
-│   ├── PLAN.md                  # Implementation plan
-│   ├── README.md                # Devops overview
-│   └── terraform/
-│       └── README.md            # Terraform docs
+├── devops/                      # Infrastruktura (submoduł)
+│   ├── CLAUDE.md                # Kontekst dla AI
+│   ├── PLAN.md                  # Plan implementacji
+│   ├── scripts/README.md        # Skrypty infrastrukturalne
+│   ├── helm/README.md           # Helm chart
+│   └── terraform/README.md      # Terraform docs
 │
-└── WMS/tests/
-    └── README.md                # Unit tests docs
+└── WMS/
+    ├── README.md                # Kod ML — model, trening, serving
+    └── tests/README.md          # Testy jednostkowe
 ```
 
----
-
-## 🔗 Quick Links
+## Szybkie linki
 
 - **GitHub Repository:** https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization
 - **GitHub Actions:** https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization/actions
 - **Pull Requests:** https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization/pulls
-- **Issues:** https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization/issues
 
----
-
-## 💡 Tips
-
-- **Confused?** Start with [WORKFLOWS.md](WORKFLOWS.md) - it explains everything
-- **Want to upload data?** See [USAGE.md](USAGE.md)
-- **Setting up?** See [BRANCH_PROTECTION.md](BRANCH_PROTECTION.md)
-- **Curious about design?** See [ARCHITECTURE.md](ARCHITECTURE.md)
-
----
-
-**Last updated:** 2026-02-08
+**Last updated:** 2026-02-15
