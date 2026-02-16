@@ -60,6 +60,6 @@ readinessProbe:
 # IMPORTANT: Set enabled: true if install_monitoring=true in terraform.tfvars
 # This allows Prometheus to scrape metrics from /metrics endpoint
 serviceMonitor:
-  enabled: false  # Change to true when monitoring is enabled
+  enabled: true
   interval: 30s
   path: /metrics

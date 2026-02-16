@@ -9,6 +9,7 @@ on:
       - 'devops'                 # Submodule pointer update (gitlink)
       - 'devops/helm/**'         # Helm chart changes
       - '.gitmodules'            # Submodule configuration changes
+      - 'helm/monitoring/**'     # Monitoring stack config
       - 'infrastructure/helm-values.yaml'  # Deployment config
       - 'requirements.txt'       # Python dependencies
       # WMS/models/production_current.json intentionally excluded:
