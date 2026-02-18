@@ -9,9 +9,7 @@
 #     --values helm/monitoring/values.yaml
 #
 # ⚠️ Resource Requirements:
-#   - Minimum: t3.medium (4 GB RAM)
-#   - Recommended: t3.large (8 GB RAM)
-#   - t3.small (2 GB RAM) will likely OOM!
+#   - Uses t3.large (8 GB RAM)
 
 # Prometheus configuration
 prometheus:
