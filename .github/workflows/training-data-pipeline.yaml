@@ -13,6 +13,7 @@ on:
   push:
     branches:
       - 'data/**'
+  workflow_dispatch: {}
 
 # Only one training pipeline at a time - queue others instead of cancelling
 concurrency:
