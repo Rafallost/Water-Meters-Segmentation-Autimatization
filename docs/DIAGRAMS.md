@@ -497,53 +497,56 @@ journey
 Concrete infrastructure — exact names, addresses and ports as deployed in AWS us-east-1.
 
 ```mermaid
-graph TB
-    subgraph dev["💻 Local Machine — Data Scientist"]
+---
+config:
+  flowchart:
+    htmlLabels: true
+  layout: dagre
+---
+flowchart TB
+ subgraph dev["💻 Local Machine — Data Scientist"]
         cli["git push / predicts.py"]
-    end
-
-    subgraph gh["GitHub — Rafallost/Water-Meters-Segmentation-Automatization"]
-        repo["Repository\ncode + .dvc manifests"]
-        hosted["GitHub-hosted runner\nubuntu-latest\n(merge · validate · PR jobs)"]
-        repo --> hosted
-    end
-
-    subgraph aws["AWS us-east-1 — Account 055677744286"]
-
-        subgraph ec2_box["EC2 t3.large · 100 GB gp3 · us-east-1a\nec2-user @ 100.50.251.97  ←  Elastic IP"]
-            runner["GitHub Actions\nself-hosted runner\n(systemd)"]
-            mlflow_svc["MLflow Server\n:5000\n(systemd)\nSQLite backend"]
-
-            subgraph k3s["k3s cluster"]
-                subgraph ns_wms["namespace: wms"]
-                    model_pod["wms-model-api pod\nFastAPI · container :8000\nNodePort :30080"]
-                end
-                subgraph ns_mon["namespace: monitoring"]
-                    prom["Prometheus\nNodePort :30900"]
-                    grafana["Grafana\nNodePort :30300"]
-                end
-            end
-        end
-
-        s3_dvc[("S3\nwms-dvc-data-055677744286")]
-        s3_mlf[("S3\nwms-mlflow-artifacts-055677744286")]
-        ecr["ECR\n055677744286.dkr.ecr\n.us-east-1.amazonaws.com/wms-model"]
-    end
-
-    cli -->|"git push"| repo
-    hosted -->|"aws ec2 start-instances"| runner
-    hosted -->|"dvc push / pull"| s3_dvc
-    hosted -->|"docker build + push"| ecr
-    runner -->|"train.py + quality-gate.py"| mlflow_svc
-    mlflow_svc -->|"boto3 · artifact storage"| s3_mlf
-    ecr -->|"imagePull"| model_pod
-    model_pod -->|"MlflowClient · load Production model"| mlflow_svc
-    prom -->|"scrape :8000/metrics"| model_pod
-    grafana -->|"PromQL"| prom
-
-    cli -->|"http://100.50.251.97:5000"| mlflow_svc
-    cli -->|"http://100.50.251.97:30080"| model_pod
-    cli -->|"http://100.50.251.97:30300"| grafana
+  end
+ subgraph gh["GitHub"]
+        repo["Repository: Rafallost/Water-Meters-Segmentation-Automatization<br>code + .dvc manifests"]
+        hosted["GitHub-hosted runner<br>ubuntu-latest<br>(merge · validate · PR jobs)"]
+  end
+ subgraph ns_wms["namespace: wms"]
+        model_pod["wms-model-api pod<br>FastAPI · container :8000<br>NodePort :30080"]
+  end
+ subgraph ns_mon["namespace: monitoring"]
+        prom["Prometheus<br>NodePort :30900"]
+        grafana["Grafana<br>NodePort :30300"]
+  end
+ subgraph k3s["k3s cluster"]
+        ns_wms
+        ns_mon
+  end
+ subgraph ec2_box["EC2 t3.large · 100 GB gp3 · us-east-1a<br>ec2-user @ 100.50.251.97 ← Elastic IP"]
+        runner["GitHub Actions<br>self-hosted runner<br>(systemd)"]
+        mlflow_svc["MLflow Server<br>:5000<br>(systemd)<br>SQLite backend"]
+        k3s
+  end
+ subgraph aws["AWS us-east-1 — Account 055677744286"]
+        ec2_box
+        s3_dvc[("S3<br>wms-dvc-data-055677744286")]
+        s3_mlf[("S3<br>wms-mlflow-artifacts-055677744286")]
+        ecr["ECR<br>055677744286.dkr.ecr<br>us-east-1.amazonaws.com/wms-model"]
+  end
+    repo --> hosted
+    cli -- git push --> repo
+    hosted -- "aws ec2 start-instances" --> runner
+    hosted -- dvc push / pull --> s3_dvc
+    hosted -- docker build + push --> ecr
+    runner -- "train.py + quality-gate.py" --> mlflow_svc
+    mlflow_svc -- boto3 · artifact storage --> s3_mlf
+    ecr -- imagePull --> model_pod
+    model_pod -- MlflowClient · load Production model --> mlflow_svc
+    prom -- scrape :8000/metrics --> model_pod
+    grafana -- PromQL --> prom
+    cli -- "http://100.50.251.97:5000" --> mlflow_svc
+    cli -- "http://100.50.251.97:30080" --> model_pod
+    cli -- "http://100.50.251.97:30300" --> grafana
 
     style ec2_box fill:#fff8e1,stroke:#f9a825
     style k3s fill:#e3f2fd,stroke:#1565c0
