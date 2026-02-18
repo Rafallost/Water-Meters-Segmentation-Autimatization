@@ -53,8 +53,9 @@ This document explains the overall system design and components.
 ### 1. **Version Control (GitHub)**
 
 #### Repository Structure
+
 ```
-Water-Meters-Segmentation-Autimatization/
+Water-Meters-Segmentation-Automatization/
 ├── WMS/                          # ML code
 │   ├── src/                      # Training, inference scripts
 │   ├── data/training/            # Training data (Git/DVC)
@@ -71,6 +72,7 @@ Water-Meters-Segmentation-Autimatization/
 ```
 
 #### Git Submodule
+
 - **devops/** is a Git submodule pointing to `DevOps-AI-Model-Automatization` repo
 - Contains infrastructure code shared across projects
 - Update with: `git submodule update --remote devops`
@@ -80,6 +82,7 @@ Water-Meters-Segmentation-Autimatization/
 ### 2. **Data Management**
 
 #### DVC (Data Version Control)
+
 - **Purpose:** Track large files (images, masks) without bloating Git
 - **Backend:** S3 bucket (`s3://wms-dvc-data-<account>/`)
 - **Metadata:** `.dvc` files committed to Git
@@ -94,18 +97,21 @@ WMS/data/training/images/       ← Actual data in S3 (large)
 ### 3. **ML Experiment Tracking (MLflow)**
 
 #### Deployment
+
 - **Runs on:** EC2 instance
 - **Port:** 5000
 - **Backend Store:** SQLite (file-based)
 - **Artifact Store:** S3 bucket (`s3://wms-mlflow-artifacts-<account>/`)
 
 #### What MLflow Tracks
+
 - Training runs with hyperparameters
 - Metrics: Dice, IoU, accuracy, loss
 - Model artifacts (.pth files)
 - Model versions and stages (Staging, Production)
 
 #### Model Versioning
+
 ```
 Model Registry:
   water-meter-segmentation
@@ -124,6 +130,7 @@ Model Registry:
 ### 4. **Infrastructure (AWS)**
 
 #### Terraform-Managed Resources
+
 ```
 VPC (10.0.0.0/16)
 ├── Public Subnet (10.0.1.0/24)
@@ -150,6 +157,7 @@ Elastic IP (optional, not currently used)
 ```
 
 #### Ephemeral Infrastructure
+
 - **Traditional:** EC2 runs 24/7 (~$18/month)
 - **Ephemeral:** EC2 starts only during training (~$4/month)
 - **How:** `ec2-control.yaml` workflow starts/stops instance
@@ -160,11 +168,13 @@ Elastic IP (optional, not currently used)
 ### 5. **Training Pipeline**
 
 #### Training Runners
+
 - **Where:** Self-hosted runner na EC2
 - **Duration:** ~1-2 godziny (50 epok, t3.large CPU)
 - **Attempts:** Jedna próba (single training run)
 
 #### Training Process
+
 ```
 1. prepareDataset.py
    ↓ Splits data into train/val/test (80/10/10)
@@ -178,6 +188,7 @@ Elastic IP (optional, not currently used)
 ```
 
 #### Model Architecture
+
 - **Type:** U-Net for semantic segmentation
 - **Input:** 512×512 RGB images (water meter photos)
 - **Output:** 512×512 binary masks (meter region)
@@ -189,6 +200,7 @@ Elastic IP (optional, not currently used)
 ### 6. **CI/CD Orchestration (GitHub Actions)**
 
 #### Workflow Orchestration
+
 ```
 User Action → Workflow Trigger → Jobs → Steps → Tools
 
@@ -213,6 +225,7 @@ See **WORKFLOWS.md** for detailed workflow explanations.
 ### 7. **Quality Gates**
 
 #### Data Quality Gate (`data-qa.py`)
+
 - Runs before training
 - Checks:
   - Image ↔ mask pairs match
@@ -222,6 +235,7 @@ See **WORKFLOWS.md** for detailed workflow explanations.
 - **Blocks training if fails**
 
 #### Model Quality Gate (inline in `training-data-pipeline.yaml`)
+
 - Runs after single training run
 - Baseline: dynamically fetched from MLflow Production model
   - If no Production model exists: baseline = 0.0 (first training always passes)
@@ -234,6 +248,7 @@ See **WORKFLOWS.md** for detailed workflow explanations.
 ## 🔄 Data Flow
 
 ### Training Data Flow
+
 ```
 Local Machine
   ↓ git push origin main (with new images)
@@ -254,6 +269,7 @@ S3 MLflow Bucket
 ```
 
 ### Model Deployment Flow
+
 ```
 MLflow Model Registry (Production stage)
   ↓ download-model.sh (on EC2)
@@ -271,6 +287,7 @@ Users/Applications
 ## 🔐 Security & Access
 
 ### AWS Credentials
+
 - Stored in GitHub Secrets:
   - `AWS_ACCESS_KEY_ID`
   - `AWS_SECRET_ACCESS_KEY`
@@ -279,10 +296,12 @@ Users/Applications
 - **Manual update required** for each session
 
 ### EC2 Access
+
 - SSH: Key pair (`labsuser.pem`)
 - Allowed from: Your IP only (security group)
 
 ### GitHub Actions Permissions
+
 - `contents: read` - Read repository code
 - `issues: write` - Post comments on issues
 - `pull-requests: write` - Create/update PRs, post comments
@@ -292,17 +311,20 @@ Users/Applications
 ## 💰 Cost Optimization
 
 ### Current Costs (~$4/month)
+
 - **EC2 (ephemeral):** ~$2-3/month (10 min/training × ~20 trainings/month)
 - **S3 Storage:** ~$1/month (DVC data + MLflow artifacts)
 - **ECR Storage:** $0 (future)
 - **Data Transfer:** Negligible
 
 ### Traditional Costs (~$18/month)
+
 - EC2 24/7: ~$15/month
 - S3: ~$1/month
 - GitHub Actions: Free (public repo)
 
 ### Budget Protection
+
 - **Cleanup script:** `devops/scripts/cleanup-aws.sh`
 - **Runs:** `terraform destroy`, empties S3 buckets
 - **Use when:** Finished testing or reaching budget limit

@@ -21,7 +21,7 @@ dvc_bucket    = "wms-dvc-data-055677744286"
 mlflow_bucket = "wms-mlflow-artifacts-055677744286"
 
 # GitHub repository (leave as-is unless you forked the repo)
-github_repo = "Rafallost/Water-Meters-Segmentation-Autimatization"
+github_repo = "Rafallost/Water-Meters-Segmentation-Automatization"
 
 # Monitoring Configuration (Prometheus + Grafana)
 # Requires t3.large or larger (you have t3.large - OK!)

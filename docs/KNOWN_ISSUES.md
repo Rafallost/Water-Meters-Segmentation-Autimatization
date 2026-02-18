@@ -12,6 +12,7 @@ This document tracks known issues and their workarounds.
 Skrypt `user-data.sh` zawiera instalację `libicu` (wymaganą przez .NET Core 6.0 / GitHub Actions runner), ale w niektórych przypadkach instancja EC2 jest tworzona bez user-data (potwierdzone przez pusty wynik `curl http://169.254.169.254/latest/user-data`). Może się to zdarzyć gdy Terraform jest uruchamiany ze starszą wersją modułu lub gdy instancja jest tworzona ręcznie.
 
 **Objaw:**
+
 ```
 Libicu's dependencies is missing for Dotnet Core 6.0
 Execute sudo ./bin/installdependencies.sh to install any missing Dotnet Core 6.0 dependencies.
@@ -20,6 +21,7 @@ Execute sudo ./bin/installdependencies.sh to install any missing Dotnet Core 6.0
 Uwaga: `./bin/installdependencies.sh` NIE działa na Amazon Linux 2023 (błędnie wykrywa OS i nie instaluje pakietu).
 
 **Workaround:**
+
 ```bash
 sudo dnf install -y libicu
 cd ~/actions-runner
@@ -29,6 +31,7 @@ sudo ./svc.sh start
 ```
 
 **Weryfikacja:**
+
 ```bash
 rpm -q libicu
 sudo ./svc.sh status
@@ -44,9 +47,11 @@ sudo ./svc.sh status
 When the `training-data-pipeline.yaml` workflow created a PR using `github-actions[bot]`, the `train.yml` workflow didn't automatically run on that PR. This was a GitHub security feature to prevent infinite workflow loops.
 
 **Affected workflows:**
+
 - OLD: `training-data-pipeline.yaml` creates PR → `train.yml` should run but doesn't
 
 **Impact (historical):**
+
 - Users had to manually trigger training after uploading data via `data/**` branches
 - Training didn't start automatically on bot-created PRs
 - Required workaround: push empty commit to trigger workflow
@@ -55,6 +60,7 @@ When the `training-data-pipeline.yaml` workflow created a PR using `github-actio
 **Redesigned workflow architecture** - training now happens BEFORE PR creation in a single unified workflow:
 
 1. **OLD architecture (broken):**
+
    ```
    training-data-pipeline.yaml → creates PR → train.yml (never triggers - bot limitation)
    ```
@@ -72,6 +78,7 @@ When the `training-data-pipeline.yaml` workflow created a PR using `github-actio
    ```
 
 **Benefits of new approach:**
+
 - ✅ No bot PR triggering needed - all in one workflow
 - ✅ PR only created if model improved (no wasted PRs)
 - ✅ No PAT needed (security improvement)
@@ -79,11 +86,13 @@ When the `training-data-pipeline.yaml` workflow created a PR using `github-actio
 - ✅ Complete automation: push data → auto-merge (if better)
 
 **Changes made:**
+
 - Modified `training-data-pipeline.yaml`: Added training jobs before PR creation
 - Modified `train.yml`: Disabled automatic triggers (manual use only)
 - Updated `docs/WORKFLOWS.md`: Documented new architecture
 
 **References:**
+
 - GitHub Docs: [Triggering a workflow from a workflow](https://docs.github.com/en/actions/using-workflows/triggering-a-workflow#triggering-a-workflow-from-a-workflow)
 - Implementation plan: Merge Workflows - Training Before PR Creation
 
@@ -105,6 +114,7 @@ When running multiple training attempts in parallel or sequentially without dela
 4. Server doesn't have time to recover between attempts
 
 **Symptoms:**
+
 ```
 urllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='100.49.195.150', port=5000):
 Max retries exceeded with url: /api/2.0/mlflow/runs/log-batch
@@ -112,11 +122,13 @@ Max retries exceeded with url: /api/2.0/mlflow/runs/log-batch
 ```
 
 **Observed behavior:**
+
 - **Attempt 1**: Trains successfully for 40-60 epochs, then crashes on metric logging
 - **Attempt 2**: Fails immediately on `mlflow.start_run()` - can't create run (503)
 - **Attempt 3**: Fails immediately on `mlflow.start_run()` - can't create run (503)
 
 **Root cause:**
+
 - SQLite backend is single-threaded and struggles with high-frequency writes
 - 100 epochs × 9 metrics = 900 write operations per training attempt
 - No recovery time between sequential training attempts
@@ -125,18 +137,21 @@ Max retries exceeded with url: /api/2.0/mlflow/runs/log-batch
 **Fixes implemented:**
 
 1. **Increased HTTP timeout** (`.github/workflows/train.yml`):
+
    ```yaml
    env:
-     MLFLOW_HTTP_REQUEST_TIMEOUT: 300  # 5 minutes (default: 120s)
-     MLFLOW_HTTP_REQUEST_MAX_RETRIES: 5  # Retry with backoff (default: 5)
+     MLFLOW_HTTP_REQUEST_TIMEOUT: 300 # 5 minutes (default: 120s)
+     MLFLOW_HTTP_REQUEST_MAX_RETRIES: 5 # Retry with backoff (default: 5)
    ```
 
 2. **Reduced metric logging frequency** (`WMS/src/train.py`):
+
    ```python
    # Log to MLflow every 5 epochs instead of every epoch
    if epoch % 5 == 0 or epoch == numEpochs:
        mlflow.log_metrics({...}, step=epoch)
    ```
+
    - Reduced from 900 writes → **180 writes per training** (5x reduction)
 
 3. **Added recovery delay between attempts** (`.github/workflows/train.yml`):
@@ -147,15 +162,18 @@ Max retries exceeded with url: /api/2.0/mlflow/runs/log-batch
        echo "⏳ Waiting 60 seconds for MLflow server to recover..."
        sleep 60
    ```
+
    - Gives SQLite time to flush writes and release locks
    - Allows server to return to idle state
 
 **Impact on training time:**
+
 - Before: ~45 minutes total (but only 1 attempt succeeds)
 - After: ~50 minutes total (all 3 attempts complete successfully)
 - +5 minutes for 2×60s delays, but **3x reliability improvement**
 
 **Alternative solutions (not implemented due to budget):**
+
 - **PostgreSQL backend**: Replace SQLite with PostgreSQL for better concurrency
   - Pros: Handles concurrent writes, no 503 errors
   - Cons: Requires RDS ($15-30/month) - exceeds $50 budget
@@ -165,6 +183,7 @@ Max retries exceeded with url: /api/2.0/mlflow/runs/log-batch
 
 **Monitoring:**
 Check MLflow server health during training:
+
 ```bash
 # SSH to EC2
 ssh -i ~/.ssh/labsuser.pem ec2-user@<EC2_IP>
@@ -177,15 +196,17 @@ sudo lsof /path/to/mlruns.db
 ```
 
 **References:**
+
 - [MLflow Environment Variables](https://mlflow.org/docs/latest/api_reference/python_api/mlflow.environment_variables.html)
 - [MLflow HTTP timeout PR #5745](https://github.com/mlflow/mlflow/pull/5745)
-- Related workflow runs: [Run #21792671320](https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization/actions/runs/21792671320)
+- Related workflow runs: [Run #21792671320](https://github.com/Rafallost/Water-Meters-Segmentation-Automatization/actions/runs/21792671320)
 
 **Date discovered:** 2026-02-08
 **Date resolved:** 2026-02-10
 
 **Resolution:**
 The simplified training pipeline (implemented 2026-02-10) uses a **single training run** instead of 3 attempts, completely eliminating this issue. The new approach:
+
 - Trains model once on the full merged dataset
 - No concurrent/sequential MLflow operations
 - No recovery delays needed
@@ -204,6 +225,7 @@ This issue is kept for historical reference only.
 Training workflow hangs for 7+ minutes when trying to connect to MLflow from GitHub Actions, despite MLflow responding instantly to local curl tests (0.028s). Gunicorn logs show repeated `WORKER TIMEOUT` errors and workers being killed.
 
 **Symptoms:**
+
 ```bash
 # From EC2 MLflow logs:
 [CRITICAL] WORKER TIMEOUT (pid:12345)
@@ -216,6 +238,7 @@ Run echo '=== Training Attempt 1/3 ==='
 ```
 
 **Root cause:**
+
 - Gunicorn default worker timeout: **30 seconds**
 - GitHub Actions → EC2 connection over internet takes longer than 30s
 - Worker times out before request completes, gets killed by master process
@@ -223,6 +246,7 @@ Run echo '=== Training Attempt 1/3 ==='
 - **Paradox**: Local curl succeeds in 0.028s because it's localhost (no network latency)
 
 **Network confirmation:**
+
 - EC2 security group allows port 5000 from 0.0.0.0/0 ✅
 - MLflow server responds to health checks ✅
 - System resources normal (CPU 84% idle, 4.7GB free RAM) ✅
@@ -241,6 +265,7 @@ ExecStart=/usr/local/bin/mlflow server \
 ```
 
 **Configuration explained:**
+
 - `--workers 2`: MLflow argument for worker count (NOT in gunicorn-opts - MLflow adds `-w` after gunicorn-opts)
 - `--timeout 300`: 5 minutes worker timeout (matches MLFLOW_HTTP_REQUEST_TIMEOUT in workflow)
 - `--keep-alive 120`: 2 minute keep-alive for slow connections (helps with internet latency)
@@ -248,6 +273,7 @@ ExecStart=/usr/local/bin/mlflow server \
 **IMPORTANT:** `--workers` must be a direct MLflow argument, NOT inside `--gunicorn-opts`. If passed via gunicorn-opts, MLflow's default `-w 4` overrides it.
 
 **Deployment:**
+
 ```bash
 # Apply Terraform changes (recreates EC2 with new user-data)
 cd devops/terraform
@@ -261,6 +287,7 @@ sudo systemctl status mlflow
 ```
 
 **Verification:**
+
 ```bash
 # Check gunicorn is using new timeout
 ssh -i ~/.ssh/labsuser.pem ec2-user@<EC2_IP>
@@ -274,10 +301,12 @@ sudo journalctl -u mlflow -f
 ```
 
 **Related issues:**
+
 - MLflow 503 errors (KNOWN_ISSUES.md) - SQLite concurrent writes
 - Connection Refused (KNOWN_ISSUES.md) - Disk full preventing MLflow startup
 
 **References:**
+
 - [Gunicorn Settings](https://docs.gunicorn.org/en/stable/settings.html#timeout)
 - [MLflow Server Options](https://mlflow.org/docs/latest/cli.html#mlflow-server)
 
@@ -294,6 +323,7 @@ sudo journalctl -u mlflow -f
 When multiple training workflows run concurrently (e.g., triggered by multiple data uploads), they all share the same EC2 instance. When the first workflow completes, it stops the EC2 instance in the `stop-infra` job, causing all other running workflows to fail with connection timeouts.
 
 **Observed behavior:**
+
 ```
 Run #1: Data QA → Start EC2 → Train → Stop EC2 ✅ (terminates instance)
 Run #2: Data QA → Start EC2 → Train → 💥 Connection timeout (EC2 deleted by Run #1)
@@ -301,6 +331,7 @@ Run #3: Data QA → Start EC2 → Train → 💥 Connection timeout (EC2 deleted
 ```
 
 **Root cause:**
+
 - Multiple workflow runs execute in parallel without coordination
 - Each workflow assumes it has exclusive access to EC2
 - `stop-infra` job runs independently per workflow
@@ -308,6 +339,7 @@ Run #3: Data QA → Start EC2 → Train → 💥 Connection timeout (EC2 deleted
 - Remaining workflows fail when they try to connect to deleted instance
 
 **Impact:**
+
 - Training failures for all but the first completed workflow
 - Wasted compute resources (Data QA, EC2 startup)
 - Confusing error messages (MLflow connection timeout instead of clear "EC2 deleted" error)
@@ -318,10 +350,11 @@ Added GitHub Actions concurrency control to `.github/workflows/train.yml`:
 ```yaml
 concurrency:
   group: training-${{ github.ref }}
-  cancel-in-progress: false  # Queue instead of cancel
+  cancel-in-progress: false # Queue instead of cancel
 ```
 
 **How it works:**
+
 - Only **one training workflow** per branch can run at a time
 - Subsequent triggers are **queued** (not canceled) and wait for previous run to complete
 - Each workflow gets exclusive access to EC2 for its entire lifecycle
@@ -329,6 +362,7 @@ concurrency:
 - Sequential execution: Run #1 completes → Run #2 starts → Run #3 starts
 
 **Example with fix:**
+
 ```
 15:00 - Push #1 triggers training → Run #1 starts immediately
 15:02 - Push #2 triggers training → Run #2 queued (waiting for Run #1)
@@ -340,17 +374,20 @@ concurrency:
 ```
 
 **Why `cancel-in-progress: false`:**
+
 - We want to **preserve all training attempts** (each might use different data/seeds)
 - Canceling would lose potentially valuable training runs
 - Queueing ensures all data uploads get trained and evaluated
 - Small delay (waiting in queue) is acceptable vs. losing training attempts
 
 **Alternative solutions considered:**
+
 1. **Separate EC2 per workflow** - Too expensive (3x cost, exceeds $50 budget)
 2. **Shared EC2 with reference counting** - Complex, prone to edge cases, hard to debug
 3. **Manual EC2 control only** - Requires discipline, error-prone, defeats automation purpose
 
 **Verification:**
+
 ```bash
 # Trigger multiple training runs quickly
 git commit --allow-empty -m "test 1" && git push
@@ -366,10 +403,12 @@ git commit --allow-empty -m "test 3" && git push
 ```
 
 **Related issues:**
+
 - MLflow timeout issues (KNOWN_ISSUES.md) - exacerbated by EC2 being deleted mid-training
 - GitHub Actions bot PR triggering (KNOWN_ISSUES.md) - can cause multiple rapid workflow starts
 
 **References:**
+
 - [GitHub Actions Concurrency Documentation](https://docs.github.com/en/actions/using-jobs/using-concurrency)
 - [Concurrency Groups Best Practices](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#concurrency)
 
@@ -391,10 +430,11 @@ Training workflow fails on the final git push step when the remote branch has ne
 4. Workflow tries to push metadata update from commit A → rejected (remote is now at commit B)
 
 **Symptoms:**
+
 ```
 [detached HEAD 61c0a95] chore: update model metadata
  1 file changed, 10 insertions(+), 5 deletions(-)
-To https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization
+To https://github.com/Rafallost/Water-Meters-Segmentation-Automatization
  ! [rejected]        HEAD -> data/training-20260210 (fetch first)
 error: failed to push some refs
 hint: Updates were rejected because the remote contains work that you do not
@@ -403,12 +443,14 @@ Error: Process completed with exit code 1.
 ```
 
 **Root cause:**
+
 - Training job runs for 10-15 minutes
 - No synchronization between workflow start and end
 - Direct `git push` without checking for remote updates
 - Metadata commit is created from stale branch HEAD
 
 **Impact:**
+
 - Training succeeds, but metadata update fails (or requires manual resolution)
 - `model-metadata.json` not updated
 - Workflow may be marked as failed even though training worked
@@ -428,12 +470,14 @@ Current implementation in `.github/workflows/train.yml` includes a fallback mess
 ```
 
 **Current solution:**
+
 - Push failures are logged but don't fail the workflow
 - Metadata is less critical than model promotion (which happens in MLflow)
 - If metadata push fails, it can be manually updated or corrected in next PR
 
 **Better solution (TODO):**
 Add fetch/sync logic similar to the stash approach:
+
 ```yaml
 git fetch origin "$BRANCH"
 git pull --rebase origin "$BRANCH"
@@ -443,17 +487,20 @@ git push origin "$BRANCH"
 ```
 
 **Why this is less critical now:**
+
 - Simplified pipeline is faster (10-15 min vs 40-50 min)
 - Smaller window for conflicts
 - `model-metadata.json` is informational (MLflow is source of truth)
 - Workflow doesn't fail if push fails
 
 **Edge cases handled:**
+
 - **No changes**: Exit early if metrics files unchanged (e.g., all attempts failed)
 - **Stash conflicts**: Highly unlikely (only 2 JSON files, workflow-exclusive access)
 - **Multiple workflows**: Concurrency control prevents this (see "Race Condition" issue)
 
 **Testing:**
+
 ```bash
 # Simulate the scenario locally:
 git checkout data/training-20260208
@@ -465,13 +512,15 @@ git push
 ```
 
 **Related issues:**
+
 - Race Condition: Concurrent Training Workflows (KNOWN_ISSUES.md) - prevents multiple workflows competing
 - S3 Upload Restrictions (KNOWN_ISSUES.md) - another push-time failure mode
 
 **References:**
+
 - [Git Stash Documentation](https://git-scm.com/docs/git-stash)
 - [GitHub Actions Checkout Action](https://github.com/actions/checkout)
-- Related workflow: [Run #21805555852](https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization/actions/runs/21805555852)
+- Related workflow: [Run #21805555852](https://github.com/Rafallost/Water-Meters-Segmentation-Automatization/actions/runs/21805555852)
 
 **Date discovered:** 2026-02-08
 **Date fixed:** 2026-02-08
@@ -486,6 +535,7 @@ git push
 AWS Academy Lab accounts restrict certain EC2 instance types. When attempting to create a t3.xlarge instance (16GB RAM, 4 vCPU) via Terraform, the operation is blocked with `UnauthorizedOperation` error.
 
 **Symptoms:**
+
 ```
 Error: creating EC2 Instance: operation error EC2: RunInstances, https response error StatusCode: 403,
 RequestID: ..., api error UnauthorizedOperation: You are not authorized to perform this operation.
@@ -494,23 +544,27 @@ ec2:RunInstances on resource: arn:aws:ec2:us-east-1:055677744286:instance/*
 ```
 
 **Root cause:**
+
 - AWS Academy Lab limits instance types to cost-effective options
 - t3.xlarge (16GB RAM, $0.0832/hour) is above the allowed threshold
 - t3.large (8GB RAM, $0.0416/hour) and smaller are permitted
 
 **Solution:**
 Updated `infrastructure/terraform.tfvars` to use t3.large instead:
+
 ```hcl
 instance_type = "t3.large" # 8GB RAM, 2 vCPU - adequate for ML workloads (AWS Academy limit)
 ```
 
 **Impact on project:**
+
 - ✅ t3.large (8GB RAM) is sufficient for development and testing
 - ✅ k3s, MLflow, and training pipeline work correctly
 - ⚠️ For large datasets (>100 images), may need batch size optimization
 - 💡 Production deployments (non-AWS Academy) should use t3.xlarge or larger
 
 **Cost savings:**
+
 - t3.large: ~$0.0416/hour (~$7.50/month 24/7, or ~$1-2/month ephemeral)
 - t3.xlarge: ~$0.0832/hour (~$15/month 24/7, or ~$2-3/month ephemeral)
 
@@ -527,6 +581,7 @@ instance_type = "t3.large" # 8GB RAM, 2 vCPU - adequate for ML workloads (AWS Ac
 AWS Academy Lab accounts have explicit IAM deny policies that prevent `ec2:RunInstances` operations. Terraform infrastructure deployment fails completely because the EC2 instance (which hosts k3s, MLflow, and the ML serving application) cannot be created.
 
 **Symptoms:**
+
 ```
 Error: creating EC2 Instance: operation error EC2: RunInstances, https response error StatusCode: 403,
 RequestID: ..., api error UnauthorizedOperation: You are not authorized to perform this operation.
@@ -536,12 +591,14 @@ identity-based policy: arn:aws:iam::055677744286:policy/Pvoclabs2 (Pvoclabs2).
 ```
 
 **Root cause:**
+
 - AWS Academy Lab uses `voclabs` IAM role with restrictive policies
 - **Explicit deny** on `ec2:RunInstances` cannot be overridden (highest precedence in IAM)
 - This restriction may vary by AWS Academy course/lab session
 - Previous sessions (documented in MEMORY.md) successfully created EC2 instances, suggesting this is a NEW restriction or lab-specific
 
 **Impact:**
+
 - ❌ Cannot deploy infrastructure via Terraform
 - ❌ No EC2 instance = no k3s cluster
 - ❌ No MLflow server for experiment tracking
@@ -550,6 +607,7 @@ identity-based policy: arn:aws:iam::055677744286:policy/Pvoclabs2 (Pvoclabs2).
 
 **Partial success:**
 These resources DO create successfully:
+
 - ✅ VPC, subnets, internet gateway, route tables
 - ✅ Security groups
 - ✅ S3 buckets (dvc-data, mlflow-artifacts)
@@ -584,11 +642,13 @@ These resources DO create successfully:
    - If found, import to Terraform state
 
 **Current status:**
+
 - Infrastructure deployment BLOCKED
 - Need to verify if manual console creation works
 - If not, project requires different AWS environment or cloud provider
 
 **References:**
+
 - [AWS IAM Policy Evaluation Logic](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html)
 - [Terraform Import](https://www.terraform.io/cli/import)
 - Related: Previous successful deployments (2026-02-07) documented in MEMORY.md
@@ -605,6 +665,7 @@ These resources DO create successfully:
 AWS Academy Lab accounts have explicit IAM deny policies that prevent `s3:PutObject` operations on MLflow artifacts bucket. Training completes successfully, but artifact uploads (plots, logs, model files) fail with `AccessDenied` errors, causing the workflow to fail overall.
 
 **Symptoms:**
+
 ```
 boto3.exceptions.S3UploadFailedError: Failed to upload plot_accuracy.png to
 wms-mlflow-artifacts-055677744286/1/.../artifacts/plots/plot_accuracy.png:
@@ -615,6 +676,7 @@ with an explicit deny in an identity-based policy
 ```
 
 **Root cause:**
+
 - AWS Academy Lab uses `voclabs` IAM role with restrictive policies
 - **Explicit deny** policies cannot be overridden (highest precedence in IAM)
 - S3 bucket policy allowing `PutObject` is insufficient against explicit deny
@@ -622,6 +684,7 @@ with an explicit deny in an identity-based policy
 - GitHub Actions OIDC role has cross-account access, but still subject to bucket policies
 
 **Impact:**
+
 - Training succeeds, model is saved locally
 - Artifacts (plots, logs) cannot be uploaded to S3
 - Model cannot be registered to MLflow Model Registry (requires S3 storage)
@@ -652,6 +715,7 @@ except Exception as e:
 ```
 
 **Result:**
+
 - Training completes successfully (exit code 0)
 - Metrics are logged to MLflow tracking server (SQLite backend - no S3 needed)
 - Artifacts saved locally in `Results/` directory
@@ -659,12 +723,14 @@ except Exception as e:
 - Workflow succeeds, allowing CI/CD to continue
 
 **Limitations:**
+
 - No model versioning in MLflow Model Registry
 - No artifact lineage across training runs
 - Cannot deploy models directly from MLflow (use local `best.pth` instead)
 - Manual model management required
 
 **Alternative solutions (not implemented):**
+
 1. **Use local artifact storage:**
    - Change MLflow `--default-artifact-root` to local filesystem path
    - Pros: No S3 needed
@@ -683,6 +749,7 @@ except Exception as e:
 
 **Verification:**
 Check training logs for successful graceful degradation:
+
 ```bash
 # Should see warnings but exit 0:
   → Training succeeded, but artifact upload failed (AWS Academy restriction)
@@ -693,13 +760,11 @@ Check training logs for successful graceful degradation:
 ```
 
 **IAM Policy Example:**
+
 ```json
 {
   "Effect": "Deny",
-  "Action": [
-    "s3:PutObject",
-    "s3:PutObjectAcl"
-  ],
+  "Action": ["s3:PutObject", "s3:PutObjectAcl"],
   "Resource": "*",
   "Condition": {
     "StringEquals": {
@@ -708,12 +773,14 @@ Check training logs for successful graceful degradation:
   }
 }
 ```
+
 This deny cannot be overridden by any allow policy.
 
 **References:**
+
 - [AWS IAM Policy Evaluation Logic](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html)
 - [MLflow Artifact Stores](https://mlflow.org/docs/latest/tracking.html#artifact-stores)
-- Related workflow: [Run #21798024629](https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization/actions/runs/21798024629)
+- Related workflow: [Run #21798024629](https://github.com/Rafallost/Water-Meters-Segmentation-Automatization/actions/runs/21798024629)
 
 **Date discovered:** 2026-02-08
 **Date fixed:** 2026-02-08
@@ -721,4 +788,3 @@ This deny cannot be overridden by any allow policy.
 ---
 
 ## End of known issues
-

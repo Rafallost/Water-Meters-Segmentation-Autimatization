@@ -12,7 +12,7 @@ This is the **most common workflow** you'll use.
 
 ```bash
 # Navigate to your project
-cd Water-Meters-Segmentation-Autimatization
+cd Water-Meters-Segmentation-Automatization
 
 # Add new images and masks
 cp /path/to/new/*.jpg WMS/data/training/images/
@@ -24,6 +24,7 @@ cat report.json
 ```
 
 **Requirements:**
+
 - Images: `.jpg` or `.png` format
 - Masks: `.png` format (binary: 0 and 255 only)
 - Naming: `image_name.jpg` must have corresponding `image_name.png` mask
@@ -67,10 +68,12 @@ Data Merging → Data QA → GitHub artifact → EC2 starts → Train ONCE → Q
 ```
 
 **Monitor progress:**
-- Go to: https://github.com/YOUR_USERNAME/Water-Meters-Segmentation-Autimatization/actions
+
+- Go to: https://github.com/YOUR_USERNAME/Water-Meters-Segmentation-Automatization/actions
 - Check workflow: `training-data-pipeline`
 
 **What happens:**
+
 1. **Data Merging** (~1-3 min): Downloads S3 data, merges z nowymi, pakuje jako artifact
 2. **Data QA** (~30 sec): Validates merged dataset
 3. **EC2 start** (~3-5 min): Uruchamia instancję z MLflow
@@ -85,6 +88,7 @@ Data Merging → Data QA → GitHub artifact → EC2 starts → Train ONCE → Q
 The workflow posts a comment on your PR with:
 
 #### ✅ Success Example:
+
 ```
 ## ✅ Training Results
 
@@ -107,6 +111,7 @@ The workflow posts a comment on your PR with:
 **If model improved:** PR is auto-approved and auto-merged.
 
 #### ❌ Failure Example:
+
 ```
 ## ❌ Training Results
 
@@ -127,6 +132,7 @@ The workflow posts a comment on your PR with:
 ### Step 5: PR i auto-merge
 
 **Jeśli model improved:** PR jest tworzony automatycznie i auto-merge jest włączony. Możesz też scalić ręcznie:
+
 ```bash
 gh pr merge <PR_NUMBER> --squash
 ```
@@ -142,6 +148,7 @@ The latest trained model lives in **MLflow Production stage**, not in Git.
 **⚠️ IMPORTANT:** Models are NOT stored in Git repository. After cloning this repo, you MUST download the Production model manually (one-time setup). The model is then cached locally for offline use.
 
 **When to download:**
+
 - ✅ **Required:** After first `git clone` (no model in repo)
 - ✅ **Optional:** After new model is trained (to get latest version)
 - ❌ **NOT needed:** After `git pull` or `git push` (model cached locally)
@@ -223,6 +230,7 @@ Complete reference for all model management tools.
 **Purpose:** Automatically download the latest Production model from MLflow.
 
 **Usage:**
+
 ```bash
 # Basic usage - download model
 python WMS/scripts/sync_model_aws.py
@@ -238,6 +246,7 @@ sync_model_aws.bat
 ```
 
 **What it does:**
+
 1. ✅ Checks AWS CLI and credentials
 2. ✅ Finds EC2 instance (tag: wms-k3s)
 3. ✅ Starts EC2 if stopped (~3 min)
@@ -246,6 +255,7 @@ sync_model_aws.bat
 6. ✅ Asks if you want to stop EC2
 
 **When to use:**
+
 - After first `git clone` (required)
 - After merging PR with improved model
 - When you see "No model found" error
@@ -260,6 +270,7 @@ sync_model_aws.bat
 **Purpose:** Quickly view Production model metrics and quality assessment.
 
 **Usage:**
+
 ```bash
 # Show Production model metrics
 python WMS/scripts/show_metrics.py
@@ -269,6 +280,7 @@ python WMS/scripts/show_metrics.py --all
 ```
 
 **Example output:**
+
 ```
 ============================================================
 PRODUCTION MODEL - Version 14
@@ -296,6 +308,7 @@ Key Parameters:
 ```
 
 **Quality thresholds:**
+
 - ✅ **Excellent:** Dice ≥ 85%
 - ⚠️ **Good:** Dice 70-85%
 - ⚠️ **Mediocre:** Dice 50-70%
@@ -310,17 +323,20 @@ Key Parameters:
 **Purpose:** View all model versions and promote models to Production stage.
 
 **Usage:**
+
 ```bash
 python WMS/scripts/check_model.py
 ```
 
 **What it does:**
+
 1. Lists all model versions (1-14 in your case)
 2. Shows current stage for each (Production, Staging, None)
 3. If no Production model, offers to promote latest version
 4. Interactive prompt for confirmation
 
 **Example output:**
+
 ```
 Found 14 version(s):
 
@@ -343,6 +359,7 @@ You can now download the model:
 ```
 
 **When to use:**
+
 - Check which model is currently Production
 - Manually promote a specific version
 - After training to verify new model was registered
@@ -354,6 +371,7 @@ You can now download the model:
 **Purpose:** Generate segmentation masks for new water meter images.
 
 **Usage:**
+
 ```bash
 # 1. Place images in this folder:
 WMS/data/predictions/photos_to_predict/
@@ -366,6 +384,7 @@ WMS/data/predictions/predicted_masks/
 ```
 
 **Model loading priority:**
+
 1. `WMS/models/production.pth` (downloaded from MLflow) ✅
 2. `WMS/models/best.pth` (legacy, if exists)
 3. Error if no model found (with download instructions)
@@ -455,7 +474,7 @@ Sometimes you want to re-run training without changing data:
 
 ### Via GitHub UI
 
-1. Go to: https://github.com/YOUR_USERNAME/Water-Meters-Segmentation-Autimatization/actions/workflows/train.yml
+1. Go to: https://github.com/YOUR_USERNAME/Water-Meters-Segmentation-Automatization/actions/workflows/train.yml
 2. Click "Run workflow"
 3. Select branch: Choose data branch (e.g., `data/20260207-220516`)
 4. Click green "Run workflow" button
@@ -484,6 +503,7 @@ cat report.json
 ```
 
 **Common errors:**
+
 - `Non-binary mask values` → Mask has values other than 0 and 255
 - `Resolution mismatch` → Image and mask have different dimensions
 - `Missing mask` → Image has no corresponding mask file
@@ -507,6 +527,7 @@ terraform apply
 ```
 
 **Common changes:**
+
 - Change EC2 instance type (t3.large → t3.medium for cost savings)
 - Update security group rules
 - Adjust storage size
@@ -526,6 +547,7 @@ bash scripts/cleanup-aws.sh
 ```
 
 **What it does:**
+
 1. Stops EC2 instance
 2. Empties S3 buckets (DVC data, MLflow artifacts)
 3. Runs `terraform destroy`
@@ -563,7 +585,7 @@ aws_session_token=IQoJb3JpZ2luX2VjEJz...
 
 ### Step 3: Update GitHub Secrets
 
-1. Go to: https://github.com/YOUR_USERNAME/Water-Meters-Segmentation-Autimatization/settings/secrets/actions
+1. Go to: https://github.com/YOUR_USERNAME/Water-Meters-Segmentation-Automatization/settings/secrets/actions
 2. Update:
    - `AWS_ACCESS_KEY_ID`
    - `AWS_SECRET_ACCESS_KEY`
@@ -580,6 +602,7 @@ aws_session_token=IQoJb3JpZ2luX2VjEJz...
 **Error:** "Non-binary mask values"
 
 **Solution:**
+
 ```bash
 # Check mask values
 python -c "
@@ -605,6 +628,7 @@ cv2.imwrite('WMS/data/training/masks/your_mask.png', binary_mask)
 **Problem:** MLflow connection issue
 
 **Solution:**
+
 1. Check if EC2 is running:
    ```bash
    aws ec2 describe-instances --filters "Name=tag:Name,Values=wms-k3s"
@@ -632,6 +656,7 @@ cv2.imwrite('WMS/data/training/masks/your_mask.png', binary_mask)
 **Problem:** Forgot to implement ephemeral infrastructure or EC2 left running
 
 **Solution:**
+
 ```bash
 # Check if EC2 is running
 aws ec2 describe-instances \
@@ -704,13 +729,13 @@ Just run `sync_model.py` to fix it!
 
 **A:** Because of MLOps best practices:
 
-| Problem with Git | Solution with MLflow |
-|------------------|----------------------|
-| Large files (7+ MB) | Only metadata stored |
-| Slow clone/pull | Fast Git operations |
-| Binary merge conflicts | No conflicts, versions tracked |
-| Git bloat (history grows) | Clean Git history |
-| No model metadata | Metrics, params, lineage |
+| Problem with Git          | Solution with MLflow           |
+| ------------------------- | ------------------------------ |
+| Large files (7+ MB)       | Only metadata stored           |
+| Slow clone/pull           | Fast Git operations            |
+| Binary merge conflicts    | No conflicts, versions tracked |
+| Git bloat (history grows) | Clean Git history              |
+| No model metadata         | Metrics, params, lineage       |
 
 This is **industry standard** for ML projects. See: [MLflow Model Registry](https://mlflow.org/docs/latest/model-registry.html)
 
@@ -724,6 +749,7 @@ This is **industry standard** for ML projects. See: [MLflow Model Registry](http
 - Script automatically stops EC2 after download
 
 **Cost optimization:**
+
 - Use `--keep-running` if doing multiple operations
 - Model is cached locally (work offline after download)
 - Only re-download when new model is trained
@@ -749,6 +775,7 @@ python WMS/scripts/sync_model.py --mlflow-url http://<EC2_IP>:5000
 - ✅ Better: Explicit manual step (clear, predictable)
 
 **Current approach:**
+
 1. Clone repo → Try to run predictions → Get error
 2. Error message tells you exactly what to do
 3. One command fixes it: `sync_model.py`
@@ -779,7 +806,7 @@ This is better UX than silent automatic downloads that may fail.
 
 ## 🆘 Need Help?
 
-- **GitHub Issues:** https://github.com/YOUR_USERNAME/Water-Meters-Segmentation-Autimatization/issues
+- **GitHub Issues:** https://github.com/YOUR_USERNAME/Water-Meters-Segmentation-Automatization/issues
 - **Workflow logs:** Check Actions tab for detailed error messages
 - **MLflow UI:** Browse experiments and models
 - **This documentation:** Everything you need is here!

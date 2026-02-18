@@ -1,12 +1,13 @@
 # Water Meters Segmentation - Automated ML Pipeline
 
-[![CI Pipeline](https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization/workflows/CI%20Pipeline/badge.svg)](https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization/actions)
+[![CI Pipeline](https://github.com/Rafallost/Water-Meters-Segmentation-Automatization/workflows/CI%20Pipeline/badge.svg)](https://github.com/Rafallost/Water-Meters-Segmentation-Automatization/actions)
 
 **Automated ML training and deployment pipeline for water meter segmentation using U-Net**
 
 > **👉 Just cloned this repo? Start here:** [QUICKSTART.md](QUICKSTART.md) - Download the model first!
 
 This project demonstrates DevOps best practices applied to machine learning, featuring:
+
 - ✅ Automated data validation and versioning
 - ✅ Automated data merging (existing S3 data + new data)
 - ✅ Ephemeral infrastructure (70% cost savings)
@@ -44,6 +45,7 @@ python WMS/src/predicts.py
 ```
 
 **Why not in Git?**
+
 - ✅ Keeps repository lightweight (models are 7+ MB, can grow to GB)
 - ✅ Fast git clone/pull operations (no large binary files)
 - ✅ MLflow is single source of truth for model versions
@@ -81,6 +83,7 @@ python WMS/src/predicts.py
 ```
 
 **When to re-download model:**
+
 - ✅ After first `git clone` (required - see First Time Setup above)
 - ✅ After merging PR with improved model (optional - to get latest version)
 - ❌ NOT needed after every `git pull/push` (model cached locally)
@@ -89,6 +92,7 @@ python WMS/src/predicts.py
 👉 **[Full model usage guide](docs/USAGE.md#-using-the-production-model-locally)**
 
 **How it works:** Pre-push hook detects training data changes and automatically:
+
 - Creates branch `data/YYYYMMDD-HHMMSS` with only your new files
 - Pushes to branch (not to main)
 - GitHub Actions then: downloads existing S3 data, merges with new, validates, trains, auto-merges if improved
@@ -96,6 +100,7 @@ python WMS/src/predicts.py
 👉 **[How hooks work](docs/BRANCH_PROTECTION.md#-two-layer-protection-system)**
 
 **That's it!** The system handles:
+
 - Data merging (existing + new = complete dataset)
 - Data validation
 - Model training on **full dataset** (single run, faster)
@@ -124,6 +129,7 @@ python WMS/scripts/sync_model_aws.py --no-stop    # Keep EC2 running after downl
 ```
 
 **What it does:**
+
 - ✅ Starts EC2 instance (if stopped)
 - ✅ Waits for MLflow to be ready (~2-5 min)
 - ✅ Downloads Production model to `WMS/models/production.pth`
@@ -158,6 +164,7 @@ cat WMS/models/production_history.jsonl
 ```
 
 **Output:**
+
 - Dice score, IoU, Loss metrics
 - Training parameters (LR, batch size, epochs)
 - Quality assessment (Excellent/Good/Mediocre/Poor)
@@ -175,6 +182,7 @@ python WMS/scripts/check_model.py
 ```
 
 **Use cases:**
+
 - See all model versions (1-14 in your case)
 - Check which version is in Production stage
 - Manually promote a model to Production
@@ -210,11 +218,13 @@ Deploy the application to AWS EC2 for live inference and demos.
 ```
 
 **Access your services:**
+
 - 📊 **MLflow UI**: `http://<EC2_IP>:5000` - Track experiments, view models
 - 🌐 **Web App**: `http://<EC2_IP>:8000` - Run inference (if deployed)
 - 📖 **API Docs**: `http://<EC2_IP>:8000/docs` - Interactive API documentation
 
 **What gets deployed:**
+
 - MLflow tracking server (always running)
 - Model serving API (if Helm charts configured)
 - k3s cluster for Kubernetes deployment
@@ -229,6 +239,7 @@ Deploy the application to AWS EC2 for live inference and demos.
 ```
 
 **💰 Cost Reminder:**
+
 - Running infrastructure costs ~$0.10/hour
 - Don't forget to shut down after demos/testing
 - Infrastructure is ephemeral - designed for on-demand usage
@@ -236,12 +247,14 @@ Deploy the application to AWS EC2 for live inference and demos.
 ### Manual Deployment vs. Auto-Deployment
 
 **Auto-deployment (in CI/CD):**
+
 - Happens automatically when model improves
 - Quick smoke test (~2 minutes)
 - EC2 shuts down immediately after
 - Purpose: Validates deployment works
 
 **Manual deployment (for usage):**
+
 - Use `./devops/scripts/deploy-to-cloud.sh`
 - Keeps running as long as you need
 - For demos, testing, and development
@@ -273,17 +286,18 @@ Deploy the application to AWS EC2 for live inference and demos.
 
 ### Quick Access:
 
-| Document | Description | When to Read |
-|----------|-------------|--------------|
-| **[WORKFLOWS.md](docs/WORKFLOWS.md)** | ⭐ **Start here!** All pipelines explained | Understanding the system |
-| **[USAGE.md](docs/USAGE.md)** | Step-by-step how-to guide | Daily operations |
-| **[DIAGRAMS.md](docs/DIAGRAMS.md)** | 🎨 Visual system diagrams (10 Mermaid charts) | Visual learners, thesis |
-| **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** | System design & components | Deep dive |
-| **[MONITORING.md](docs/MONITORING.md)** | Prometheus + Grafana setup | Observability & testing |
-| **[CREDENTIALS.md](docs/CREDENTIALS.md)** | 🔐 AWS credentials management | Local development setup |
-| **[BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md)** | GitHub setup guide | One-time setup |
+| Document                                              | Description                                   | When to Read             |
+| ----------------------------------------------------- | --------------------------------------------- | ------------------------ |
+| **[WORKFLOWS.md](docs/WORKFLOWS.md)**                 | ⭐ **Start here!** All pipelines explained    | Understanding the system |
+| **[USAGE.md](docs/USAGE.md)**                         | Step-by-step how-to guide                     | Daily operations         |
+| **[DIAGRAMS.md](docs/DIAGRAMS.md)**                   | 🎨 Visual system diagrams (10 Mermaid charts) | Visual learners, thesis  |
+| **[ARCHITECTURE.md](docs/ARCHITECTURE.md)**           | System design & components                    | Deep dive                |
+| **[MONITORING.md](docs/MONITORING.md)**               | Prometheus + Grafana setup                    | Observability & testing  |
+| **[CREDENTIALS.md](docs/CREDENTIALS.md)**             | 🔐 AWS credentials management                 | Local development setup  |
+| **[BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md)** | GitHub setup guide                            | One-time setup           |
 
 **For Developers:**
+
 - [Implementation Plan](devops/PLAN.md) - Development phases
 - [Data Management Guide](devops/DATA_MANAGEMENT.md) - DVC, S3, automated workflows
 - [Terraform Docs](devops/terraform/README.md) - Infrastructure
@@ -291,6 +305,7 @@ Deploy the application to AWS EC2 for live inference and demos.
 - [Scripts README](WMS/scripts/README.md) - Model management tools
 
 **For AI Assistants:**
+
 - [CLAUDE.md](devops/CLAUDE.md) - Project context and rules
 
 ---
@@ -298,6 +313,7 @@ Deploy the application to AWS EC2 for live inference and demos.
 ## 🗺️ Architecture Diagrams
 
 The full architecture pack is available in **[docs/DIAGRAMS.md](docs/DIAGRAMS.md)** (10 Mermaid diagrams), including:
+
 - End-to-end CI/CD + MLOps flow
 - Training pipeline and quality gate logic
 - Local prediction workflow
@@ -345,22 +361,26 @@ User → Upload Data → Data QA → Training (EC2 auto-start)
 ### Key Features
 
 **Ephemeral Infrastructure**
+
 - EC2 instance only runs during training (~10 min)
 - Cost: ~$4/month instead of ~$18/month (70% savings)
 - Fully automated start/stop via GitHub Actions
 
 **Quality-Gated Training**
+
 - Up to 3 training attempts (different seeds), stops early if model improves
 - Compares to dynamic baseline fetched from MLflow Production model
 - Auto-promotes model to MLflow Production if improved
 - PR created and auto-merged only if model improved
 
 **Data Versioning**
+
 - DVC integration with S3 backend
 - Git tracks metadata, S3 stores large files
 - POC mode: Small datasets tracked in Git directly
 
 **Experiment Tracking**
+
 - MLflow server on EC2
 - Tracks metrics, hyperparameters, artifacts
 - Model registry with versioning (Staging/Production)
@@ -383,12 +403,12 @@ Decoder (4 levels) + skip connections
 Output: 512×512 binary mask (meter region)
 ```
 
-| Metric | Baseline (v1) | Current Best |
-|--------|---------------|--------------|
-| **Dice Coefficient** | 0.9275 | _(depends on training)_ |
-| **IoU** | 0.8865 | _(depends on training)_ |
-| **Parameters** | 1,965,569 | 1,965,569 |
-| **Model Size** | 7.6 MB | 7.6 MB |
+| Metric               | Baseline (v1) | Current Best            |
+| -------------------- | ------------- | ----------------------- |
+| **Dice Coefficient** | 0.9275        | _(depends on training)_ |
+| **IoU**              | 0.8865        | _(depends on training)_ |
+| **Parameters**       | 1,965,569     | 1,965,569               |
+| **Model Size**       | 7.6 MB        | 7.6 MB                  |
 
 **Framework:** PyTorch
 **Architecture:** Enhanced U-Net [(Ronneberger et al., 2015)](https://arxiv.org/abs/1505.04597)
@@ -397,11 +417,11 @@ Output: 512×512 binary mask (meter region)
 
 ## 🔄 Workflows
 
-| Workflow | Purpose | Trigger | Duration |
-|----------|---------|---------|----------|
-| **training-data-pipeline.yaml** | Full pipeline: merge data → validate → train → PR | Push to `data/*` | ~15-30 min |
-| **ec2-control.yaml** | Start/stop EC2 infrastructure | Called by training pipeline | ~30 sec |
-| **train.yml** | Manual training (no data changes) | `workflow_dispatch` only | ~15 min |
+| Workflow                        | Purpose                                           | Trigger                     | Duration   |
+| ------------------------------- | ------------------------------------------------- | --------------------------- | ---------- |
+| **training-data-pipeline.yaml** | Full pipeline: merge data → validate → train → PR | Push to `data/*`            | ~15-30 min |
+| **ec2-control.yaml**            | Start/stop EC2 infrastructure                     | Called by training pipeline | ~30 sec    |
+| **train.yml**                   | Manual training (no data changes)                 | `workflow_dispatch` only    | ~15 min    |
 
 👉 **[Detailed workflow explanations](docs/WORKFLOWS.md)**
 
@@ -409,29 +429,31 @@ Output: 512×512 binary mask (meter region)
 
 ## 🛠️ Technology Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **ML Framework** | PyTorch |
-| **Experiment Tracking** | MLflow |
-| **Data Versioning** | DVC + S3 |
-| **Infrastructure** | AWS (EC2, S3, ECR) |
-| **IaC** | Terraform |
+| Layer                       | Technology                   |
+| --------------------------- | ---------------------------- |
+| **ML Framework**            | PyTorch                      |
+| **Experiment Tracking**     | MLflow                       |
+| **Data Versioning**         | DVC + S3                     |
+| **Infrastructure**          | AWS (EC2, S3, ECR)           |
+| **IaC**                     | Terraform                    |
 | **Container Orchestration** | k3s (lightweight Kubernetes) |
-| **CI/CD** | GitHub Actions |
-| **Deployment** | Helm + Docker + ECR |
-| **Monitoring** | Prometheus + Grafana |
+| **CI/CD**                   | GitHub Actions               |
+| **Deployment**              | Helm + Docker + ECR          |
+| **Monitoring**              | Prometheus + Grafana         |
 
 ---
 
 ## 💰 Cost Breakdown
 
 **Current (with ephemeral infrastructure):**
+
 - EC2 (t3.large, ephemeral): ~$1-2/month
 - S3 storage: ~$1/month
 - **Total: ~$3/month**
 - Note: t3.xlarge (16GB) recommended for production, but AWS Academy limits to t3.large (8GB)
 
 **Traditional (24/7 EC2):**
+
 - EC2 (t3.large, always on): ~$7.50/month
 - S3 storage: ~$1/month
 - **Total: ~$10/month**
@@ -469,17 +491,17 @@ graph TD
 
 ## 📊 Project Status
 
-| Phase | Status | Description |
-|-------|--------|-------------|
-| Phase 1: Data Foundation | ✅ Complete | DVC, data QA scripts |
-| Phase 2: Core Scripts | ✅ Complete | Validation, quality gates |
-| Phase 3: GitHub Workflows | ✅ Complete | All pipelines implemented |
-| Phase 4: Infrastructure | ✅ Complete | Terraform, EC2, MLflow, k3s |
-| Phase 5: Training Pipeline | ✅ Complete | Ephemeral training with quality gates |
-| Phase 6: Deployment | ✅ Complete | Docker + ECR + k3s + Helm |
-| Phase 7: Documentation | ✅ Complete | Comprehensive docs |
-| Phase 8: Monitoring | ✅ Complete | Prometheus + Grafana + ServiceMonitor |
-| Phase 9: Thesis Writing | 🚧 In Progress | Comparative analysis & documentation |
+| Phase                      | Status         | Description                           |
+| -------------------------- | -------------- | ------------------------------------- |
+| Phase 1: Data Foundation   | ✅ Complete    | DVC, data QA scripts                  |
+| Phase 2: Core Scripts      | ✅ Complete    | Validation, quality gates             |
+| Phase 3: GitHub Workflows  | ✅ Complete    | All pipelines implemented             |
+| Phase 4: Infrastructure    | ✅ Complete    | Terraform, EC2, MLflow, k3s           |
+| Phase 5: Training Pipeline | ✅ Complete    | Ephemeral training with quality gates |
+| Phase 6: Deployment        | ✅ Complete    | Docker + ECR + k3s + Helm             |
+| Phase 7: Documentation     | ✅ Complete    | Comprehensive docs                    |
+| Phase 8: Monitoring        | ✅ Complete    | Prometheus + Grafana + ServiceMonitor |
+| Phase 9: Thesis Writing    | 🚧 In Progress | Comparative analysis & documentation  |
 
 ---
 
@@ -499,8 +521,8 @@ graph TD
 
 ```bash
 # 1. Clone repository with submodules
-git clone --recurse-submodules https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization.git
-cd Water-Meters-Segmentation-Autimatization
+git clone --recurse-submodules https://github.com/Rafallost/Water-Meters-Segmentation-Automatization.git
+cd Water-Meters-Segmentation-Automatization
 
 # 2. Install pre-push hook (for automatic data branch creation)
 ./devops/scripts/install-git-hooks.sh
@@ -553,21 +575,25 @@ Access MLflow UI: `http://<EC2_IP>:5000` (when EC2 is running)
 ### Common Issues
 
 **"Data QA failed - Non-binary mask values"**
+
 - Masks must contain only 0 and 255
 - Convert JPG masks to PNG to avoid compression artifacts
 - Run `python devops/scripts/data-qa.py WMS/data/training/` locally
 
 **"Training failed - All 3 attempts"**
+
 - Model didn't improve over baseline
 - Check if new data is sufficient/correct
 - Review training logs in GitHub Actions
 
 **"AWS credentials expired" (in GitHub Actions)**
+
 - AWS Academy credentials expire every 4 hours
 - Update GitHub Secrets: Settings → Secrets → Actions
 - **No local AWS credentials needed** for data uploads!
 
 **"EC2 costs too high"**
+
 - Ensure ephemeral infrastructure is working
 - Run `devops/scripts/cleanup-aws.sh` when done
 
@@ -585,6 +611,7 @@ bash scripts/cleanup-aws.sh
 ```
 
 This will:
+
 - Stop EC2 instance
 - Empty S3 buckets
 - Destroy all Terraform-managed resources
@@ -594,7 +621,7 @@ This will:
 ## 📁 Repository Structure
 
 ```
-Water-Meters-Segmentation-Autimatization/
+Water-Meters-Segmentation-Automatization/
 ├── WMS/                          # ML code and data
 │   ├── src/                      # Training, inference scripts
 │   │   ├── train.py              # Main training script
@@ -640,12 +667,14 @@ Water-Meters-Segmentation-Autimatization/
 **Title:** "Application of DevOps Techniques in Implementing Automatic CI/CD Process for Training and Versioning AI Models"
 
 **Objectives:**
+
 1. Compare manual vs. automated ML deployment workflows
 2. Demonstrate cost optimization through ephemeral infrastructure
 3. Implement quality gates for model versioning
 4. Document best practices for ML DevOps
 
 **Key Results:**
+
 - 70% cost reduction through ephemeral EC2 usage
 - Automated quality-gated training pipeline
 - Comprehensive experiment tracking with MLflow
@@ -681,14 +710,14 @@ This project is for academic purposes.
 
 ## 📧 Contact
 
-- **GitHub Issues:** [Report bugs or ask questions](https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization/issues)
+- **GitHub Issues:** [Report bugs or ask questions](https://github.com/Rafallost/Water-Meters-Segmentation-Automatization/issues)
 - **Email:** _(Your email if public)_
 
 ---
 
 ## 🔗 Related Repositories
 
-- **This repo:** [Water-Meters-Segmentation-Autimatization](https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization) (ML code + workflows)
+- **This repo:** [Water-Meters-Segmentation-Automatization](https://github.com/Rafallost/Water-Meters-Segmentation-Automatization) (ML code + workflows)
 - **Infrastructure repo:** [DevOps-AI-Model-Automatization](https://github.com/Rafallost/DevOps-AI-Model-Automatization) (Terraform, Helm, scripts)
 - **Original model repo:** [Water-Meters-Segmentation](https://github.com/Rafallost/Water-Meters-Segmentation) (Baseline, read-only)
 

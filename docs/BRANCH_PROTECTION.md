@@ -15,6 +15,7 @@ This project uses **2 complementary protection mechanisms**:
 **Purpose:** Automatically redirect training data to proper branch
 
 **How it works:**
+
 ```bash
 git push origin main
   ↓
@@ -31,6 +32,7 @@ Hook checks: Did you change WMS/data/training/?
 ```
 
 **Example - Training Data:**
+
 ```bash
 git add WMS/data/training/images/*.jpg
 git commit -m "data: new samples"
@@ -55,6 +57,7 @@ Next steps:
 ```
 
 **Example - Code/Docs/Workflows:**
+
 ```bash
 git add .github/workflows/train.yml
 git commit -m "fix: update workflow"
@@ -74,6 +77,7 @@ git push origin main
 **Purpose:** Ensure code quality through PR process
 
 **Rules:**
+
 - ✅ All changes through Pull Requests (except owner)
 - ✅ Required status checks must pass
 - ✅ Owner can bypass (for code/docs/workflows)
@@ -136,7 +140,7 @@ git push origin main
 
 # 4. Commit goes directly to main
 remote: Bypassed rule violations for refs/heads/main
-To github.com:Rafallost/Water-Meters-Segmentation-Autimatization.git
+To github.com:Rafallost/Water-Meters-Segmentation-Automatization.git
    abc1234..def5678  main -> main
 
 # Note: No tests run BEFORE merge (you bypassed)
@@ -144,6 +148,7 @@ To github.com:Rafallost/Water-Meters-Segmentation-Autimatization.git
 ```
 
 **⚠️ Best Practice:** For large code changes, use PR even as owner:
+
 ```bash
 git checkout -b feature/major-refactor
 git push origin feature/major-refactor
@@ -200,12 +205,12 @@ git push origin fix/bug
 
 ## 📋 Summary Table
 
-| Change Type | Owner | Contributor |
-|-------------|-------|-------------|
-| **Training data** | Hook → `data/*` branch → PR → Auto-merge | Hook → `data/*` branch → PR → Auto-merge |
-| **Code (small fix)** | Direct push to main ✅ | ❌ Blocked → Must use PR |
-| **Code (large change)** | PR recommended (optional) | ❌ Must use PR |
-| **Docs/Workflows** | Direct push to main ✅ | ❌ Blocked → Must use PR |
+| Change Type             | Owner                                    | Contributor                              |
+| ----------------------- | ---------------------------------------- | ---------------------------------------- |
+| **Training data**       | Hook → `data/*` branch → PR → Auto-merge | Hook → `data/*` branch → PR → Auto-merge |
+| **Code (small fix)**    | Direct push to main ✅                   | ❌ Blocked → Must use PR                 |
+| **Code (large change)** | PR recommended (optional)                | ❌ Must use PR                           |
+| **Docs/Workflows**      | Direct push to main ✅                   | ❌ Blocked → Must use PR                 |
 
 ---
 
@@ -226,12 +231,14 @@ git config core.hooksPath devops/hooks
 ```
 
 **Verify installation:**
+
 ```bash
 ls -la .git/hooks/pre-push
 # Should show file with execute permissions
 ```
 
 **Test the hook:**
+
 ```bash
 # This should trigger hook:
 touch WMS/data/training/images/test.jpg
@@ -251,11 +258,13 @@ git push origin --delete data/$(date +%Y%m%d)*  # Delete test branch
 ## Why Branch Protection?
 
 **Without protection:**
+
 - Anyone can push directly to `main`
 - No code review required
 - Risky for production code
 
 **With protection:**
+
 - ✅ Only PRs can update `main`
 - ✅ Required checks must pass
 - ✅ Only repository owner can bypass (emergency)
@@ -267,7 +276,7 @@ git push origin --delete data/$(date +%Y%m%d)*  # Delete test branch
 
 ### Step 1: Go to Branch Protection Settings
 
-1. Go to your repository: https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization
+1. Go to your repository: https://github.com/Rafallost/Water-Meters-Segmentation-Automatization
 2. Click **Settings** tab
 3. In left sidebar, click **Branches**
 4. Under "Branch protection rules", click **Add branch protection rule**
@@ -277,6 +286,7 @@ git push origin --delete data/$(date +%Y%m%d)*  # Delete test branch
 ### Step 2: Configure Rule
 
 **Branch name pattern:**
+
 ```
 main
 ```
@@ -284,6 +294,7 @@ main
 **Enable these settings:**
 
 #### ✅ Require a pull request before merging
+
 - ☑ **Require a pull request before merging**
   - ☐ Require approvals: **0** (auto-merge will approve)
   - ☑ **Dismiss stale pull request approvals when new commits are pushed**
@@ -292,6 +303,7 @@ main
     - Add: **Rafallost** (your username) - allows you to force-push in emergencies
 
 #### ✅ Require status checks to pass before merging
+
 - ☑ **Require status checks to pass before merging**
   - ☑ **Require branches to be up to date before merging**
   - **Status checks that are required:**
@@ -299,16 +311,20 @@ main
     - Select: `Train Model` (from training-data-pipeline.yaml)
 
 **Don't select:**
+
 - ❌ `start-infra` / `stop-infra` - infrastructure jobs, not quality gates
 
 #### ✅ Require conversation resolution before merging
+
 - ☑ **Require conversation resolution before merging** (optional)
 
 #### ✅ Do not allow bypassing the above settings
+
 - ☐ **Do not allow bypassing the above settings** (keep UNCHECKED)
   - This allows you (owner) to bypass in emergencies
 
 #### Other settings (optional):
+
 - ☐ Require signed commits
 - ☐ Require linear history
 - ☐ Require merge queue
@@ -328,16 +344,19 @@ Click **Create** button at the bottom.
 ## What This Means
 
 ### ✅ You CAN:
+
 - Create PRs and merge them (if checks pass)
 - Use auto-merge (workflow will merge automatically)
 - **Bypass protection as repo owner** (emergency only!)
 
 ### ❌ You CANNOT (without PR):
+
 - `git push origin main` directly
 - Force push to main
 - Delete main branch
 
 ### ⚠️ To Bypass (Emergency):
+
 ```bash
 # If you REALLY need to push directly (not recommended!)
 git push origin main --force
@@ -401,11 +420,13 @@ git push origin test-branch
 ### "Auto-merge failed"
 
 **Possible reasons:**
+
 1. Required checks didn't pass
 2. Branch protection not configured
 3. Missing "Allow auto-merge" in repo settings
 
 **Fix:**
+
 1. Go to Settings → General
 2. Scroll to "Pull Requests"
 3. Check ☑ **Allow auto-merge**
@@ -416,6 +437,7 @@ git push origin test-branch
 **Reason:** Not all required checks passed
 
 **Fix:**
+
 - Wait for checks to complete
 - Fix any failing checks
 - Push fixes to the PR branch
@@ -431,6 +453,7 @@ git push origin test-branch
 ## Updating Protection Rules
 
 To modify rules:
+
 1. Go to Settings → Branches
 2. Find "main" rule
 3. Click **Edit**
@@ -442,6 +465,7 @@ To modify rules:
 ## Summary
 
 **Current setup:**
+
 - ✅ Main branch protected
 - ✅ PRs required
 - ✅ Checks required (CI + Training)
@@ -449,10 +473,12 @@ To modify rules:
 - ✅ Owner can bypass (emergency)
 
 **Workflow:**
+
 - Push data → PR auto-created → Checks run → Auto-merge if improved
 - **Zero manual steps!**
 
 **Security:**
+
 - No accidental pushes to main
 - All changes reviewed by CI
 - Quality gate ensures good models only

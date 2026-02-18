@@ -6,39 +6,40 @@ Welcome to the Water Meters Segmentation project documentation!
 
 Zacznij tutaj żeby zrozumieć i używać systemu:
 
-| Dokument | Opis | Kiedy czytać |
-|----------|------|--------------|
-| **[WORKFLOWS.md](WORKFLOWS.md)** | Wszystkie pipeline wyjaśnione | Pierwsze uruchomienie, debugowanie |
-| **[USAGE.md](USAGE.md)** | Przewodnik krok po kroku | Codzienne operacje (upload danych) |
-| **[ARCHITECTURE.md](ARCHITECTURE.md)** | Projekt systemu i komponenty | Zrozumienie architektury |
-| **[QUICKSTART.md](QUICKSTART.md)** | Szybki start — minimalny setup | Nowe środowisko, onboarding |
-| **[BRANCH_PROTECTION.md](BRANCH_PROTECTION.md)** | Dwie warstwy ochrony: hooki + reguły GitHub | Zrozumienie modelu bezpieczeństwa |
+| Dokument                                         | Opis                                        | Kiedy czytać                       |
+| ------------------------------------------------ | ------------------------------------------- | ---------------------------------- |
+| **[WORKFLOWS.md](WORKFLOWS.md)**                 | Wszystkie pipeline wyjaśnione               | Pierwsze uruchomienie, debugowanie |
+| **[USAGE.md](USAGE.md)**                         | Przewodnik krok po kroku                    | Codzienne operacje (upload danych) |
+| **[ARCHITECTURE.md](ARCHITECTURE.md)**           | Projekt systemu i komponenty                | Zrozumienie architektury           |
+| **[QUICKSTART.md](QUICKSTART.md)**               | Szybki start — minimalny setup              | Nowe środowisko, onboarding        |
+| **[BRANCH_PROTECTION.md](BRANCH_PROTECTION.md)** | Dwie warstwy ochrony: hooki + reguły GitHub | Zrozumienie modelu bezpieczeństwa  |
 
 ## Dokumentacja techniczna
 
 Dla programistów i zaawansowanych użytkowników:
 
-| Dokument | Lokalizacja | Opis |
-|----------|-------------|------|
-| **Project README** | [../README.md](../README.md) | Główny przegląd projektu i quick start |
-| **Tests README** | [../WMS/tests/README.md](../WMS/tests/README.md) | Dokumentacja testów jednostkowych |
-| **Terraform README** | [../devops/terraform/README.md](../devops/terraform/README.md) | Infrastructure as Code |
-| **Helm README** | [../devops/helm/README.md](../devops/helm/README.md) | Helm chart — serving modelu na k3s |
-| **Scripts README** | [../devops/scripts/README.md](../devops/scripts/README.md) | Skrypty infrastrukturalne i MLOps |
-| **KNOWN_ISSUES.md** | [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Znane problemy i obejścia |
-| **MONITORING.md** | [MONITORING.md](MONITORING.md) | Prometheus + Grafana |
-| **CREDENTIALS.md** | [CREDENTIALS.md](CREDENTIALS.md) | Zarządzanie credentials AWS Academy |
+| Dokument             | Lokalizacja                                                    | Opis                                   |
+| -------------------- | -------------------------------------------------------------- | -------------------------------------- |
+| **Project README**   | [../README.md](../README.md)                                   | Główny przegląd projektu i quick start |
+| **Tests README**     | [../WMS/tests/README.md](../WMS/tests/README.md)               | Dokumentacja testów jednostkowych      |
+| **Terraform README** | [../devops/terraform/README.md](../devops/terraform/README.md) | Infrastructure as Code                 |
+| **Helm README**      | [../devops/helm/README.md](../devops/helm/README.md)           | Helm chart — serving modelu na k3s     |
+| **Scripts README**   | [../devops/scripts/README.md](../devops/scripts/README.md)     | Skrypty infrastrukturalne i MLOps      |
+| **KNOWN_ISSUES.md**  | [KNOWN_ISSUES.md](KNOWN_ISSUES.md)                             | Znane problemy i obejścia              |
+| **MONITORING.md**    | [MONITORING.md](MONITORING.md)                                 | Prometheus + Grafana                   |
+| **CREDENTIALS.md**   | [CREDENTIALS.md](CREDENTIALS.md)                               | Zarządzanie credentials AWS Academy    |
 
 ## Dla AI Assistantów
 
-| Dokument | Lokalizacja | Cel |
-|----------|-------------|-----|
+| Dokument      | Lokalizacja                  | Cel                               |
+| ------------- | ---------------------------- | --------------------------------- |
 | **CLAUDE.md** | [../CLAUDE.md](../CLAUDE.md) | Kontekst projektu i zasady dla AI |
-| **PLAN.md** | [../PLAN.md](../PLAN.md) | Fazy implementacji i priorytety |
+| **PLAN.md**   | [../PLAN.md](../PLAN.md)     | Fazy implementacji i priorytety   |
 
 ## Przewodnik czytania
 
 ### Nowy użytkownik:
+
 ```
 1. ../README.md          (przegląd projektu)
 2. QUICKSTART.md         (szybki start)
@@ -48,6 +49,7 @@ Dla programistów i zaawansowanych użytkowników:
 ```
 
 ### Deweloper:
+
 ```
 1. ARCHITECTURE.md                    (projekt systemu)
 2. ../devops/scripts/README.md        (skrypty)
@@ -56,6 +58,7 @@ Dla programistów i zaawansowanych użytkowników:
 ```
 
 ### Debugowanie:
+
 ```
 1. WORKFLOWS.md          (który workflow padł?)
 2. KNOWN_ISSUES.md       (znane problemy)
@@ -66,7 +69,7 @@ Dla programistów i zaawansowanych użytkowników:
 ## Struktura plików
 
 ```
-Water-Meters-Segmentation-Autimatization/
+Water-Meters-Segmentation-Automatization/
 ├── README.md                    # Główny przegląd projektu
 │
 ├── docs/                        # Dokumentacja (TUTAJ JESTEŚ)
@@ -94,8 +97,8 @@ Water-Meters-Segmentation-Autimatization/
 
 ## Szybkie linki
 
-- **GitHub Repository:** https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization
-- **GitHub Actions:** https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization/actions
-- **Pull Requests:** https://github.com/Rafallost/Water-Meters-Segmentation-Autimatization/pulls
+- **GitHub Repository:** https://github.com/Rafallost/Water-Meters-Segmentation-Automatization
+- **GitHub Actions:** https://github.com/Rafallost/Water-Meters-Segmentation-Automatization/actions
+- **Pull Requests:** https://github.com/Rafallost/Water-Meters-Segmentation-Automatization/pulls
 
 **Last updated:** 2026-02-15

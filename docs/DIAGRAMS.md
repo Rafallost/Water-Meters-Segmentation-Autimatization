@@ -502,7 +502,7 @@ graph TB
         cli["git push / predicts.py"]
     end
 
-    subgraph gh["GitHub — Rafallost/Water-Meters-Segmentation-Autimatization"]
+    subgraph gh["GitHub — Rafallost/Water-Meters-Segmentation-Automatization"]
         repo["Repository\ncode + .dvc manifests"]
         hosted["GitHub-hosted runner\nubuntu-latest\n(merge · validate · PR jobs)"]
         repo --> hosted

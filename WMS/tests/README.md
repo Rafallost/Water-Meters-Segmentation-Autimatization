@@ -5,14 +5,18 @@ Comprehensive unit tests for the Water Meters Segmentation project.
 ## Test Coverage
 
 ### test_serve_api.py
+
 Tests for the FastAPI serving application:
+
 - **Preprocessing tests**: Image preprocessing, resizing, normalization
 - **Postprocessing tests**: Mask generation, binarization, encoding
 - **API endpoint tests**: Health check, prediction, metrics
 - **Integration tests**: Full prediction workflow
 
 ### test_data_qa.py
+
 Tests for data quality assurance:
+
 - **Valid data tests**: Correct image/mask pairs, resolutions, binary masks
 - **Invalid data tests**: Missing files, wrong resolutions, non-binary masks
 - **Edge cases**: Empty directories, corrupted files, mixed data
@@ -28,6 +32,7 @@ pip install -r requirements.txt
 ```
 
 Required test packages:
+
 - `pytest` - Test framework
 - `pytest-cov` - Coverage reporting
 - `httpx` - Required for FastAPI TestClient
@@ -82,6 +87,7 @@ start htmlcov/index.html
 ### pytest.ini
 
 Configuration file at project root:
+
 - Test discovery patterns
 - Output formatting
 - Coverage settings (commented out by default)
@@ -90,6 +96,7 @@ Configuration file at project root:
 ### conftest.py
 
 Shared pytest fixtures:
+
 - `temp_dir` - Temporary directory for file tests
 - `sample_image` - 512x512 RGB test image
 - `sample_mask` - 512x512 binary mask
@@ -100,6 +107,7 @@ Shared pytest fixtures:
 ## CI/CD Integration
 
 Tests run automatically on GitHub Actions for:
+
 - Every push to `main` or `develop` branches
 - Every pull request to `main`
 
@@ -184,7 +192,7 @@ def test_preprocess_image_handles_different_sizes(sample_image):
 If you get import errors, make sure you're running from the project root:
 
 ```bash
-cd /path/to/Water-Meters-Segmentation-Autimatization
+cd /path/to/Water-Meters-Segmentation-Automatization
 pytest WMS/tests/
 ```
 
@@ -236,6 +244,7 @@ WMS/tests/test_data_qa.py .......................                        [100%]
 Target coverage: **>70%** of source code
 
 Key areas to maintain high coverage:
+
 - API endpoints (>90%)
 - Data validation logic (>85%)
 - Image preprocessing (>80%)
